@@ -1,12 +1,12 @@
 [package]
-name = "vault"
+name = "bank"
 version = "0.1.0"
-description = "A simple SOL vault program"
+description = "A USDC Bank program"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "vault"
+name = "bank"
 
 [features]
 default = []
