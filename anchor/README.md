@@ -22,7 +22,8 @@ Make it simple and correct, testable, deployable, frontend-integratable.
 1. Tools: liteSVM, surfpool.
 2. Test cases: 
    - deposit/withdraw invariants:
-     - total users shares == vault recorded shares
+     - total users shares == bank total shares
+     - bank_token_account.amount >= bank_state.total_deposits
    - double withdraw attempt;
    - rounding edge cases;
    - zero deposit / zero share cases;

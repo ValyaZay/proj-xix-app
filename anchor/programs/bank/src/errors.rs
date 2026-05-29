@@ -8,8 +8,23 @@ pub enum BankError {
     #[msg("Mint For Bank Is Wrong")]
     MintForBankIsWrong,
 
-    #[msg("NotEnoughTokensTransferred")]
+    #[msg("User Ata For Bank Is Wrong")]
+    UserAtaForBankIsWrong,
+
+    #[msg("Not Enough Tokens Transferred")]
     NotEnoughTokensTransferred,
+
+    #[msg("Zero Shares From Amount")]
+    ZeroSharesFromAmount,
+
+    #[msg("Bank Token Account Owner Is Wrong")]
+    BankTokenAccountOwnerIsWrong,
+
+    #[msg("Zero Amount To Deposit")]
+    ZeroAmountToDeposit,
+
+    #[msg("Bank Underfunded")]
+    BankUnderfunded,
 }
 
 #[error_code]
