@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum BankError {
+pub enum BankErrors {
     #[msg("Bank Is Not Initialized")]
     BankIsNotInitialized,
 
@@ -25,10 +25,7 @@ pub enum BankError {
 
     #[msg("Bank Underfunded")]
     BankUnderfunded,
-}
 
-#[error_code]
-pub enum MathError {
     #[msg("Overflow")]
     Overflow,
 

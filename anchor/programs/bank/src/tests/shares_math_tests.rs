@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod convert_assets_to_shares {
-    use crate::{MIN_USDC_DEPOSIT, MathError, shares_math::convert_assets_to_shares};
+    use crate::{MIN_USDC_DEPOSIT, BankErrors, shares_math::convert_assets_to_shares};
 
     #[test]
     #[should_panic(expected = "DivisionByZero")]
@@ -49,7 +49,7 @@ mod convert_assets_to_shares {
         let expected_result_u128 = (total_shares as u128)
                                             .checked_mul(assets_amount as u128).unwrap()
                                             .checked_div(total_assets_amount as u128).unwrap();
-        let expected_result: u64 = expected_result_u128.try_into().map_err(|_| MathError::Overflow).unwrap();
+        let expected_result: u64 = expected_result_u128.try_into().map_err(|_| BankErrors::Overflow).unwrap();
 
         assert_eq!(result, expected_result);
     }

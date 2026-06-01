@@ -1,4 +1,4 @@
-use crate::MathError;
+use crate::BankErrors;
 
 pub fn convert_assets_to_shares(assets_amount: u64, total_shares: u64, total_assets_amount: u64) -> u64 {
     if total_assets_amount == 0 {
@@ -11,6 +11,6 @@ pub fn convert_assets_to_shares(assets_amount: u64, total_shares: u64, total_ass
     let total_assets_amount_u128 = u128::from(total_assets_amount);
 
     let result_u128 = assets_amount_u128 * total_shares_u128 / total_assets_amount_u128;
-    let result: u64 = result_u128.try_into().map_err(|_| MathError::Overflow).unwrap();
+    let result: u64 = result_u128.try_into().map_err(|_| BankErrors::Overflow).unwrap();
     result
 }

@@ -3,7 +3,7 @@ use anchor_spl:: {
     token_interface::{TokenAccount, TransferChecked, self}
 };
 
-use crate::{BankError, MIN_USDC_DEPOSIT, MathError};
+use crate::{BankErrors, MIN_USDC_DEPOSIT};
 
 // NOT TESTED YET!!!
 pub fn transfer_from_ata_to_token_account<'info>(
@@ -25,7 +25,7 @@ pub fn transfer_from_ata_to_token_account<'info>(
     };
 
     let cpi_context = CpiContext::new(
-        token_program_account_info,
+        token_program_account_info.key(),
         transfer_cpi_accounts,
     );
 
@@ -34,9 +34,9 @@ pub fn transfer_from_ata_to_token_account<'info>(
     bank_token_account.reload()?;
     let bank_balance_after_transfer = bank_token_account.amount;
 
-    let received = bank_balance_after_transfer.checked_sub(bank_balance_before_transfer).ok_or(MathError::Overflow)?;
+    let received = bank_balance_after_transfer.checked_sub(bank_balance_before_transfer).ok_or(BankErrors::Overflow)?;
 
-    require!(received >= MIN_USDC_DEPOSIT, BankError::NotEnoughTokensTransferred);
+    require!(received >= MIN_USDC_DEPOSIT, BankErrors::NotEnoughTokensTransferred);
 
     Ok(received)
 }
