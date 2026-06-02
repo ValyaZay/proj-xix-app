@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("5A3GtQVu573XH7XyqUdg2fwn3P4hCorg5oC61JZMUjUQ");
+declare_id!("CTb99n5SgTTkjA2i6zAKvDxd7QbbmCgj4RbgFfpmX6FZ");
 
 #[program]
 pub mod bank {
@@ -59,6 +59,8 @@ pub mod bank {
                 is_initialized: true
             });
         }
+
+       // require!()
 
         // deposit - TODO - add test
         let received = transfer_from_ata_to_token_account(
