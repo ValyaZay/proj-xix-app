@@ -30,5 +30,8 @@ pub enum BankErrors {
     Overflow,
 
     #[msg("Division By Zero")]
-    DivisionByZero
+    DivisionByZero,
+
+    #[msg("User Is Wrong")]
+    UserIsWrong,
 }

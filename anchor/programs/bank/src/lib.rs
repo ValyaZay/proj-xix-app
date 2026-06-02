@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("DHNuE62eoHVQjYoVcxgRngzLwpxXPUsWCrwEm3aUzyLC");
+declare_id!("DMcYF1rP5z8zLMWWbo1XMLNP4KUW3GJNmpghEyXYsfmd");
 
 #[program]
 pub mod bank {

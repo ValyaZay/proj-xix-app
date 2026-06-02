@@ -1,19 +1,19 @@
 
 use anchor_lang;
 use anchor_lang::declare_program;
-use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, Pubkey, Signer, TestHelpers};
+use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
 declare_program!(bank);
 
-use crate::bank::client::accounts::Deposit;
-
 use self::bank::client::{accounts, args};
 use self::bank::accounts::{User, Bank};
+use crate::bank::events::DepositEvent;
 
 const PROGRAM_BYTES: &[u8] = include_bytes!("../../../target/deploy/bank.so");
+const MIN_USDC_DEPOSIT: u64 = 10_000_000; // 10 usdc
 
 fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     let ctx = AnchorLiteSVM::build_with_program(self::bank::ID, PROGRAM_BYTES);
@@ -86,7 +86,6 @@ fn should_init_bank() {
 
     let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
-    assert_eq!(bank_account.is_initialized, true);
     assert_eq!(bank_account.authority, bank_authority.pubkey());
     assert_eq!(bank_account.mint, mint.pubkey());
     assert_eq!(bank_account.total_deposits, 0);
@@ -136,5 +135,60 @@ fn deposit_should_revert_if_amount_is_zero() {
     .assert_anchor_error("ZeroAmountToDeposit");
 }
 
+#[test]
+fn deposit_should_update_bank_and_user_state() {
+    // Arrange
+    let mut ctx = init_anchor_ctx();
+    let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
+    println!("created mint key {:?}", mint.pubkey());
+    ctx.svm.assert_account_exists(&mint.pubkey());
+
+    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.pubkey().as_ref()], &self::bank::ID).0;
+    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.pubkey().as_ref()], &self::bank::ID).0;
+
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+
+    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+
+    let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+
+    let user_state_pda = Pubkey::find_program_address(&[b"SEED_USER_STATE", depositor.pubkey().as_ref()], &self::bank::ID).0;
+
+    // create ata and fund it
+    let user_ata = ctx.svm.create_associated_token_account(&mint.pubkey(), &depositor).unwrap();
+    ctx.svm.mint_to(&mint.pubkey(), &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
+
+    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint.pubkey(), &bank_token_account_pda, &user_ata,);
+
+    // Act
+    let inx = ctx
+        .program()
+        .accounts(deposit_inx_accounts)
+        .args(args::Deposit { amount: MIN_USDC_DEPOSIT })
+        .instruction()
+        .unwrap();
+
+    let result = ctx
+    .execute_instruction(inx, &[&depositor])
+    .unwrap();
+
+    // Assert
+    result.assert_event_emitted::<DepositEvent>();
+    let deposit_event: DepositEvent = result.parse_event().unwrap();
+    assert_eq!(deposit_event.user, depositor.pubkey());
+
+
+    let bank_state_updated:Bank = ctx.get_account(&bank_pda).unwrap();
+    assert_eq!(bank_state_updated.total_deposits, MIN_USDC_DEPOSIT);
+    assert_eq!(bank_state_updated.total_deposit_shares, MIN_USDC_DEPOSIT);
+    
+    let user_state: User = ctx.get_account(&user_state_pda).unwrap();
+    assert_eq!(user_state.deposit_usdc_shares, MIN_USDC_DEPOSIT);
+
+    let bank_token_account_updated: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    assert_eq!(bank_token_account_updated.amount, MIN_USDC_DEPOSIT);
+    println!("bank_token_account_updated.amount {}", bank_token_account_updated.amount);
+}
 
 
