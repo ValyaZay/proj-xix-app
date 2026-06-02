@@ -18,11 +18,9 @@ fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     ctx
 }
 
-fn init_bank_accounts(ctx: &mut AnchorContext, mint: &Keypair, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey) -> (Bank, TokenAccount) {
+fn init_bank_accounts(ctx: &mut AnchorContext, mint: &Keypair, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) -> (Bank, TokenAccount) {
     println!("incoming mint key {} ", mint.pubkey());
     ctx.svm.assert_account_exists(&mint.pubkey());
-
-    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
 
     let ix = ctx
         .program()
@@ -50,7 +48,6 @@ fn init_bank_accounts(ctx: &mut AnchorContext, mint: &Keypair, bank_pda: &Pubkey
     ctx.svm.assert_account_exists(bank_pda);
     ctx.svm.assert_account_exists(bank_token_account_pda);
 
-
     let bank_account: Bank = ctx.get_account(bank_pda).unwrap();
     let bank_token_account: TokenAccount = ctx.get_account(bank_token_account_pda).unwrap();
     
@@ -71,10 +68,18 @@ fn should_init_bank() {
     let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.pubkey().as_ref()], &self::bank::ID).0;
     let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.pubkey().as_ref()], &self::bank::ID).0;
 
-    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda);
+     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+
+    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     assert_eq!(bank_account.is_initialized, true);
+    assert_eq!(bank_account.authority, bank_authority.pubkey());
+    assert_eq!(bank_account.mint, mint.pubkey());
+    assert_eq!(bank_account.total_deposits, 0);
+    assert_eq!(bank_account.total_deposit_shares, 0);
+
     assert_eq!(bank_token_account.mint, mint.pubkey());
+    assert_eq!(bank_token_account.amount, 0);
 }
 
 
