@@ -5,11 +5,11 @@ anchor_version = "1.0.2"
 resolution = true
 skip-lint = false
 
-[programs.devnet]
-bank = "CTb99n5SgTTkjA2i6zAKvDxd7QbbmCgj4RbgFfpmX6FZ"
+[programs.localnet]
+bank = "DHNuE62eoHVQjYoVcxgRngzLwpxXPUsWCrwEm3aUzyLC"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("CTb99n5SgTTkjA2i6zAKvDxd7QbbmCgj4RbgFfpmX6FZ");
+declare_id!("DHNuE62eoHVQjYoVcxgRngzLwpxXPUsWCrwEm3aUzyLC");
 
 #[program]
 pub mod bank {
@@ -37,7 +37,7 @@ pub mod bank {
             mint: ctx.accounts.mint.key(),
             total_deposits: 0, 
             total_deposit_shares: 0,
-            is_initialized: true });
+        });
         // init bank token account 
         Ok(())
     }
@@ -46,8 +46,7 @@ pub mod bank {
         require!(amount > 0, BankErrors::ZeroAmountToDeposit);
 
         let bank_state = &mut ctx.accounts.bank_state;
-        require!(bank_state.is_initialized, BankErrors::BankIsNotInitialized);
-
+        
         // invariant check
         require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
 
@@ -60,7 +59,7 @@ pub mod bank {
             });
         }
 
-       // require!()
+        require!(user_state.user == ctx.accounts.user.key(), BankErrors::UserIsWrong);
 
         // deposit - TODO - add test
         let received = transfer_from_ata_to_token_account(

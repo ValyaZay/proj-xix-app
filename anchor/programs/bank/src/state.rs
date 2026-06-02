@@ -17,6 +17,5 @@ pub struct Bank {
     pub mint: Pubkey,
     pub total_deposits: u64,
     pub total_deposit_shares: u64,
-    pub is_initialized: bool,
 }
 
