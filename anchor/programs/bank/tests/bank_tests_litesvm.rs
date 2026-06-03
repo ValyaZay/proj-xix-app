@@ -1,5 +1,6 @@
 
-use anchor_lang;
+use anchor_lang::solana_program::pubkey;
+use anchor_lang::{self, Key, pubkey};
 use anchor_lang::declare_program;
 use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
@@ -8,9 +9,12 @@ use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
 declare_program!(bank);
 
-use self::bank::client::{accounts, args};
-use self::bank::accounts::{User, Bank};
-use crate::bank::events::DepositEvent;
+use self::bank::{
+    client::{accounts, args},
+    accounts::{User, Bank},
+    events::DepositEvent,
+};
+
 
 const PROGRAM_BYTES: &[u8] = include_bytes!("../../../target/deploy/bank.so");
 const MIN_USDC_DEPOSIT: u64 = 10_000_000; // 10 usdc
@@ -20,15 +24,12 @@ fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     ctx
 }
 
-fn init_bank_accounts(ctx: &mut AnchorContext, mint: &Keypair, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) -> (Bank, TokenAccount) {
-    println!("incoming mint key {} ", mint.pubkey());
-    ctx.svm.assert_account_exists(&mint.pubkey());
-
+fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) {
     let ix = ctx
         .program()
         .accounts(accounts::InitBank {
             authority: bank_authority.pubkey(),
-            mint: mint.pubkey(),
+            mint: *mint,
             bank_state: *bank_pda,
             bank_token_account: *bank_token_account_pda,
             token_program: anchor_spl::token::ID,
@@ -39,21 +40,10 @@ fn init_bank_accounts(ctx: &mut AnchorContext, mint: &Keypair, bank_pda: &Pubkey
         .unwrap();
 
     let result = ctx.execute_instruction(ix, &[&bank_authority]).unwrap();
-
-    println!("TransactionResult {:?}", result);
-
     result.assert_success();
-
-    println!("bank_pda {}", bank_pda);
-    println!("bank_token_account_pda {}", bank_token_account_pda);
     
     ctx.svm.assert_account_exists(bank_pda);
     ctx.svm.assert_account_exists(bank_token_account_pda);
-
-    let bank_account: Bank = ctx.get_account(bank_pda).unwrap();
-    let bank_token_account: TokenAccount = ctx.get_account(bank_token_account_pda).unwrap();
-    
-    (bank_account, bank_token_account)
 }
     
 fn get_deposit_inx_accounts(user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey,) -> accounts::Deposit {
@@ -70,28 +60,44 @@ fn get_deposit_inx_accounts(user_state_pda: &Pubkey, depositor: &Pubkey, bank_pd
     }
 }
 
-#[test]
-fn should_init_bank() {
-    // Arrange
-    let mut ctx = init_anchor_ctx();
+fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypair) {
     let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
     println!("created mint key {:?}", mint.pubkey());
     ctx.svm.assert_account_exists(&mint.pubkey());
+    (mint.pubkey(), mint_authority)
+}
 
-    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.pubkey().as_ref()], &self::bank::ID).0;
-    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.pubkey().as_ref()], &self::bank::ID).0;
+fn get_bank_account_pda(mint: Pubkey, authority: Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref(), authority.as_ref()], &self::bank::ID).0
+}
 
-     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0
+}
 
-    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+#[test]
+fn should_init_bank() {
+    // Arrange
+    let mut ctx = init_anchor_ctx();
+    let (mint, _) = get_mint_pubkey_and_authority(&mut ctx);
 
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+
+    // Act
+    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+
+    // Assert
+    let bank_account: Bank = ctx.get_account(&bank_pda).unwrap();
     assert_eq!(bank_account.authority, bank_authority.pubkey());
-    assert_eq!(bank_account.mint, mint.pubkey());
+    assert_eq!(bank_account.mint, mint);
     assert_eq!(bank_account.total_deposits, 0);
     assert_eq!(bank_account.total_deposit_shares, 0);
 
-    assert_eq!(bank_token_account.mint, mint.pubkey());
+    let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    assert_eq!(bank_token_account.mint, mint);
     assert_eq!(bank_token_account.amount, 0);
 }
 
@@ -99,26 +105,22 @@ fn should_init_bank() {
 fn deposit_should_revert_if_amount_is_zero() {
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
-    println!("created mint key {:?}", mint.pubkey());
-    ctx.svm.assert_account_exists(&mint.pubkey());
+    let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
 
-    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.pubkey().as_ref()], &self::bank::ID).0;
-    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.pubkey().as_ref()], &self::bank::ID).0;
+    // Arrange bank
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    
+    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
-     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-
-    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
-
+    // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-
     let user_state_pda = Pubkey::find_program_address(&[b"SEED_USER_STATE", depositor.pubkey().as_ref()], &self::bank::ID).0;
+    let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
+    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
-    let user_ata = ctx.svm.create_associated_token_account(&mint.pubkey(), &depositor).unwrap();
-
-    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint.pubkey(), &bank_token_account_pda, &user_ata,);
-    println!("deposit_inx_accounts - mint {}", deposit_inx_accounts.mint);
+    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata,);
 
     // Act / Assert
     let inx = ctx
@@ -136,30 +138,27 @@ fn deposit_should_revert_if_amount_is_zero() {
 }
 
 #[test]
-fn deposit_should_update_bank_and_user_state() {
+fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
-    println!("created mint key {:?}", mint.pubkey());
-    ctx.svm.assert_account_exists(&mint.pubkey());
+    let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
 
-    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.pubkey().as_ref()], &self::bank::ID).0;
-    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.pubkey().as_ref()], &self::bank::ID).0;
-
+    // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
 
-    let (bank_account, bank_token_account) = init_bank_accounts(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
+    // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-
     let user_state_pda = Pubkey::find_program_address(&[b"SEED_USER_STATE", depositor.pubkey().as_ref()], &self::bank::ID).0;
 
     // create ata and fund it
-    let user_ata = ctx.svm.create_associated_token_account(&mint.pubkey(), &depositor).unwrap();
-    ctx.svm.mint_to(&mint.pubkey(), &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
+    let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
+    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
-    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint.pubkey(), &bank_token_account_pda, &user_ata,);
+    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata,);
 
     // Act
     let inx = ctx
@@ -189,6 +188,13 @@ fn deposit_should_update_bank_and_user_state() {
     let bank_token_account_updated: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     assert_eq!(bank_token_account_updated.amount, MIN_USDC_DEPOSIT);
     println!("bank_token_account_updated.amount {}", bank_token_account_updated.amount);
+
+    // check ata
 }
 
 
+#[test]
+fn deposit_should_revert_if_user_is_not_user_state_owner() {
+
+    //require!(user_state.user == ctx.accounts.user.key(), BankErrors::UserIsWrong); - should be redundant check, it should not be possible to sign tx for other user state because there is a contstrain in seeds - user is involved, which is a signer as well
+}

@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("DMcYF1rP5z8zLMWWbo1XMLNP4KUW3GJNmpghEyXYsfmd");
+declare_id!("Ecp7CvF1kRU2kenW4DjGAGyNEZkHQ2WNxaeEgGNv9d1R");
 
 #[program]
 pub mod bank {
@@ -111,7 +111,7 @@ pub struct InitBank<'info> {
         init,
         payer = authority,
         space = Bank::DISCRIMINATOR.len() + Bank::INIT_SPACE,
-        seeds = [SEED_BANK_STATE, mint.key().as_ref()],
+        seeds = [SEED_BANK_STATE, mint.key().as_ref(), authority.key().as_ref()],
         bump
     )]
     pub bank_state: Account<'info, Bank>,
@@ -148,7 +148,7 @@ pub struct Deposit<'info> {
         mut,
         has_one = mint @ BankErrors::MintForBankIsWrong,
         constraint = bank_state.mint.key() == user_associated_token_account.mint.key() @ BankErrors::UserAtaForBankIsWrong,
-        seeds = [SEED_BANK_STATE, mint.key().as_ref()],
+        seeds = [SEED_BANK_STATE, mint.key().as_ref(), bank_state.authority.as_ref()],
         bump,
     )]
     pub bank_state: Account<'info, Bank>,

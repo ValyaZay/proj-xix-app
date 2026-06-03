@@ -1,5 +1,5 @@
 {
-  "address": "DMcYF1rP5z8zLMWWbo1XMLNP4KUW3GJNmpghEyXYsfmd",
+  "address": "Ecp7CvF1kRU2kenW4DjGAGyNEZkHQ2WNxaeEgGNv9d1R",
   "metadata": {
     "name": "bank",
     "version": "0.1.0",
@@ -260,6 +260,10 @@
               {
                 "kind": "account",
                 "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "authority"
               }
             ]
           }
@@ -300,6 +304,10 @@
               {
                 "kind": "account",
                 "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "authority"
               }
             ]
           }
