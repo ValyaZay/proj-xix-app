@@ -17,9 +17,6 @@ pub enum BankErrors {
     #[msg("Zero Shares From Amount")]
     ZeroSharesFromAmount,
 
-    #[msg("Bank Token Account Owner Is Wrong")]
-    BankTokenAccountOwnerIsWrong,
-
     #[msg("Zero Amount To Deposit")]
     ZeroAmountToDeposit,
 

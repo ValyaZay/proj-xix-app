@@ -1,9 +1,16 @@
 
+use std::io::ErrorKind;
+
 use anchor_lang::{self};
 use anchor_lang::declare_program;
-use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
+use anchor_litesvm::{ AccountError, AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers};
+use anchor_spl::token::accessor::amount;
 use anchor_spl::token_interface::TokenAccount;
-use ::bank::events::{DepositEvent,DepositEventJson};
+use ::bank::{//import from external crate (not from idl modules)
+    events::{DepositEvent},
+    constants::MIN_USDC_DEPOSIT,
+    shares_math::convert_assets_to_shares,
+};
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
@@ -15,12 +22,11 @@ declare_program!(bank);
 use self::bank::{
     client::{accounts, args},
     accounts::{User, Bank},
-    //events::DepositEvent,
+    //events::DepositEvent, //import from idl modules
 };
 
 
 const PROGRAM_BYTES: &[u8] = include_bytes!("../../../target/deploy/bank.so");
-const MIN_USDC_DEPOSIT: u64 = 10_000_000; // 10 usdc
 
 fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     let ctx = AnchorLiteSVM::build_with_program(self::bank::ID, PROGRAM_BYTES);
@@ -49,8 +55,8 @@ fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubkey, b
     ctx.svm.assert_account_exists(bank_token_account_pda);
 }
     
-fn get_deposit_inx_accounts(user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey,) -> accounts::Deposit {
-    accounts::Deposit {
+fn get_deposit_inx(ctx: &mut AnchorContext, user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey, amount: u64) -> Instruction {
+    let deposit_accounts = accounts::Deposit {
         user: *depositor,
         user_state: *user_state_pda,
         bank_state: *bank_pda,
@@ -60,7 +66,14 @@ fn get_deposit_inx_accounts(user_state_pda: &Pubkey, depositor: &Pubkey, bank_pd
         token_program: anchor_spl::token::ID,
         system_program: anchor_lang::system_program::ID,
         associated_token_program: anchor_spl::associated_token::ID,
-    }
+    };
+
+    ctx
+        .program()
+        .accounts(deposit_accounts)
+        .args(args::Deposit { amount: amount })
+        .instruction()
+        .unwrap()
 }
 
 fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypair) {
@@ -76,6 +89,10 @@ fn get_bank_account_pda(mint: Pubkey, authority: Pubkey) -> Pubkey {
 
 fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0
+}
+
+fn get_user_account_pda(user: Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[b"SEED_USER_STATE", user.as_ref()], &self::bank::ID).0
 }
 
 #[test]
@@ -118,20 +135,13 @@ fn deposit_should_revert_if_amount_is_zero() {
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let user_state_pda = Pubkey::find_program_address(&[b"SEED_USER_STATE", depositor.pubkey().as_ref()], &self::bank::ID).0;
+    let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
-    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata,);
+    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, 0);
 
     // Act / Assert
-    let inx = ctx
-        .program()
-        .accounts(deposit_inx_accounts)
-        .args(args::Deposit { amount: 0 })
-        .instruction()
-        .unwrap();
-
     ctx
     .execute_instruction(inx, &[&depositor])
     .unwrap()
@@ -149,52 +159,63 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
     let bank_token_account_pda = get_bank_token_account_pda(mint);
-
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    let init_bank_state:Bank = ctx.get_account(&bank_pda).unwrap();
+    let init_total_assets = init_bank_state.total_deposits;
+    let init_total_shares = init_bank_state.total_deposit_shares;
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let user_state_pda = Pubkey::find_program_address(&[b"SEED_USER_STATE", depositor.pubkey().as_ref()], &self::bank::ID).0;
-
-    // create ata and fund it
+    let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
-
-    let deposit_inx_accounts = get_deposit_inx_accounts(&user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata,);
+    
+    let init_user_state = match ctx.get_account::<User>(&user_state_pda) {
+        Ok(account) => account,
+        Err(error) => {
+            match error {
+                AccountError::AccountNotFound(_) => {
+                    User::default()
+                }
+                _ => panic!("Some problem when getting user account!")
+            }
+        }
+    };
+    let init_user_deposit_usdc_shares = init_user_state.deposit_usdc_shares;
 
     // Act
-    let inx = ctx
-        .program()
-        .accounts(deposit_inx_accounts)
-        .args(args::Deposit { amount: MIN_USDC_DEPOSIT })
-        .instruction()
-        .unwrap();
-
+    let amount_to_deposit = MIN_USDC_DEPOSIT;
+    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
     let result = ctx
     .execute_instruction(inx, &[&depositor])
     .unwrap();
 
-    // Assert
+    // Assert - DepositEvent
+    let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets);
     result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = result.parse_event().unwrap();
     assert_eq!(deposit_event.user, depositor.pubkey());
-    
-    
-    
-    record_deposit_event(&deposit_event);
+    assert_eq!(deposit_event.amount, amount_to_deposit);
+    assert_eq!(deposit_event.shares, shares_to_be_added_from_amount);
 
+    // Assert - BankState
     let bank_state_updated:Bank = ctx.get_account(&bank_pda).unwrap();
-    assert_eq!(bank_state_updated.total_deposits, MIN_USDC_DEPOSIT);
-    assert_eq!(bank_state_updated.total_deposit_shares, MIN_USDC_DEPOSIT);
+    assert_eq!(bank_state_updated.total_deposits, amount_to_deposit + init_total_assets);
+    assert_eq!(bank_state_updated.total_deposit_shares, shares_to_be_added_from_amount + init_total_shares);
     
+    // Assert - UserState
     let user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(user_state.deposit_usdc_shares, MIN_USDC_DEPOSIT);
+    assert_eq!(user_state.deposit_usdc_shares, init_user_deposit_usdc_shares + shares_to_be_added_from_amount);
 
+    // Assert - BankTokenAccount
     let bank_token_account_updated: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     assert_eq!(bank_token_account_updated.amount, MIN_USDC_DEPOSIT);
     println!("bank_token_account_updated.amount {}", bank_token_account_updated.amount);
 
-    // check ata
+    // Assert - User ATA
+    
+    // Record event
+    record_deposit_event(&deposit_event);
 }
 
 

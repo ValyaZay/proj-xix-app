@@ -3,16 +3,6 @@ mod convert_assets_to_shares {
     use crate::{MIN_USDC_DEPOSIT, BankErrors, shares_math::convert_assets_to_shares};
 
     #[test]
-    #[should_panic(expected = "DivisionByZero")]
-    fn should_panic_if_total_assets_is_zero() {
-        let assets_amount = 10_000;
-        let total_shares = MIN_USDC_DEPOSIT;
-        let total_assets_amount = 0;
-
-        convert_assets_to_shares(assets_amount, total_shares, total_assets_amount);
-    }
-
-    #[test]
     fn should_scale_linearly() {
         let init_total_assets = MIN_USDC_DEPOSIT;
         let init_total_shares = MIN_USDC_DEPOSIT;

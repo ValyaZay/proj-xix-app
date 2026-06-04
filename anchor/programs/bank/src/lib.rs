@@ -10,7 +10,7 @@ pub mod state;
 pub use state::*;
 
 pub mod events;
-pub use events::*;
+use events::*;
 
 pub mod errors;
 pub use errors::*;
@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("Ecp7CvF1kRU2kenW4DjGAGyNEZkHQ2WNxaeEgGNv9d1R");
+declare_id!("FgK7twDm6ATfSppDzE4EAJQrxdpWFbWF3WGduEGNLB48");
 
 #[program]
 pub mod bank {
@@ -75,11 +75,7 @@ pub mod bank {
         let amount = received;
 
         // calculate shares
-        let shares = if bank_state.total_deposits == 0 {
-            amount
-        } else {
-            convert_assets_to_shares(amount, bank_state.total_deposit_shares, bank_state.total_deposits)
-        };
+        let shares = convert_assets_to_shares(amount, bank_state.total_deposit_shares, bank_state.total_deposits);
 
         require!(shares > 0, BankErrors::ZeroSharesFromAmount);
 
@@ -166,8 +162,8 @@ pub struct Deposit<'info> {
     #[account(
         mut,
         seeds = [SEED_BANK_TOKEN_ACCOUNT, mint.key().as_ref()],
-        constraint = bank_token_account.mint == mint.key() @ BankErrors::MintForBankIsWrong,
-        constraint = bank_token_account.owner == bank_token_account.key() @ BankErrors::BankTokenAccountOwnerIsWrong,
+        token::authority = bank_token_account,
+        token::mint = mint,
         bump,
     )]
     pub bank_token_account: InterfaceAccount<'info, TokenAccount>,
