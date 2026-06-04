@@ -1,5 +1,5 @@
 {
-  "address": "Ecp7CvF1kRU2kenW4DjGAGyNEZkHQ2WNxaeEgGNv9d1R",
+  "address": "FgK7twDm6ATfSppDzE4EAJQrxdpWFbWF3WGduEGNLB48",
   "metadata": {
     "name": "bank",
     "version": "0.1.0",
@@ -85,6 +85,11 @@
               {
                 "kind": "account",
                 "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "bank_state.authority",
+                "account": "Bank"
               }
             ]
           }
@@ -304,10 +309,6 @@
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "account",
-                "path": "authority"
               }
             ]
           }

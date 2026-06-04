@@ -1,11 +1,14 @@
 
-use anchor_lang::solana_program::pubkey;
-use anchor_lang::{self, Key, pubkey};
+use anchor_lang::{self};
 use anchor_lang::declare_program;
 use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
+
+mod event_recorder;
+use event_recorder::*;
+
 
 declare_program!(bank);
 
@@ -63,7 +66,6 @@ fn get_deposit_inx_accounts(user_state_pda: &Pubkey, depositor: &Pubkey, bank_pd
 fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypair) {
     let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
-    println!("created mint key {:?}", mint.pubkey());
     ctx.svm.assert_account_exists(&mint.pubkey());
     (mint.pubkey(), mint_authority)
 }
@@ -176,7 +178,13 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = result.parse_event().unwrap();
     assert_eq!(deposit_event.user, depositor.pubkey());
-
+    let event_json_model = DepositEventJson {
+        user: deposit_event.user.to_string(),
+        amount: deposit_event.amount,
+        shares: deposit_event.shares,
+        timestamp: deposit_event.timestamp,
+    };
+    record_deposit_event(&event_json_model);
 
     let bank_state_updated:Bank = ctx.get_account(&bank_pda).unwrap();
     assert_eq!(bank_state_updated.total_deposits, MIN_USDC_DEPOSIT);
