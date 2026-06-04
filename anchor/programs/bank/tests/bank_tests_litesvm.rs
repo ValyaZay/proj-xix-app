@@ -3,19 +3,19 @@ use anchor_lang::{self};
 use anchor_lang::declare_program;
 use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
+use ::bank::events::{DepositEvent,DepositEventJson};
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
 mod event_recorder;
 use event_recorder::*;
 
-
 declare_program!(bank);
 
 use self::bank::{
     client::{accounts, args},
     accounts::{User, Bank},
-    events::DepositEvent,
+    //events::DepositEvent,
 };
 
 
@@ -178,13 +178,10 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = result.parse_event().unwrap();
     assert_eq!(deposit_event.user, depositor.pubkey());
-    let event_json_model = DepositEventJson {
-        user: deposit_event.user.to_string(),
-        amount: deposit_event.amount,
-        shares: deposit_event.shares,
-        timestamp: deposit_event.timestamp,
-    };
-    record_deposit_event(&event_json_model);
+    
+    
+    
+    record_deposit_event(&deposit_event);
 
     let bank_state_updated:Bank = ctx.get_account(&bank_pda).unwrap();
     assert_eq!(bank_state_updated.total_deposits, MIN_USDC_DEPOSIT);
