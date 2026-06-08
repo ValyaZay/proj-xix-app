@@ -22,12 +22,12 @@ Make it simple and correct, testable, deployable, frontend-integratable.
 1. Tools: liteSVM, surfpool.
 2. Test cases: 
    - deposit/withdraw invariants:
-     - total users shares == bank total shares
+     - sum of users deposit shares == bank total deposit shares
      - bank_token_account.amount >= bank_state.total_deposits
    - double withdraw attempt;
    - rounding edge cases;
    - zero deposit / zero share cases;
-   - repeated deposit / withdraw cycles.
+   - repeated deposit -> withdraw cycles.
 
 ### 4. Integrate to frontend
 1. Generate TypeScript client with Codama.

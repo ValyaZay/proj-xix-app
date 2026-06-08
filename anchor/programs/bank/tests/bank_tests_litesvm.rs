@@ -17,6 +17,10 @@ use solana_sdk::native_token::LAMPORTS_PER_SOL;
 mod event_recorder;
 use event_recorder::*;
 
+mod invariants_tests;
+use invariants_tests::*;
+
+
 declare_program!(bank);
 
 use self::bank::{
@@ -121,7 +125,7 @@ fn should_init_bank() {
 }
 
 #[test]
-fn deposit_should_revert_if_amount_is_zero() {
+fn deposit_should_revert_if_amount_is_less_than_allowed() {
     // Arrange
     let mut ctx = init_anchor_ctx();
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
@@ -139,14 +143,15 @@ fn deposit_should_revert_if_amount_is_zero() {
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, 0);
+    let amount_to_deposit = MIN_USDC_DEPOSIT - 1;
+    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     // Act / Assert
     ctx
     .execute_instruction(inx, &[&depositor])
     .unwrap()
     .assert_failure()
-    .assert_anchor_error("ZeroAmountToDeposit");
+    .assert_anchor_error("NotEnoughAmountToDeposit");
 }
 
 #[test]
@@ -232,6 +237,10 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let sol_user_state_balance = ctx.svm.get_balance(&user_state_pda).unwrap(); // user state account was created during deposit inx
     let depositor_sol_account_balance_updated = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
     assert_eq!(depositor_sol_account_balance_init, depositor_sol_account_balance_updated + tx_fee_to_validator + sol_user_state_balance);
+
+    // invariant check
+    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account_updated.amount, bank_state_updated.total_deposits);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(user_state.deposit_usdc_shares, bank_state_updated.total_deposit_shares);
 
     // Record event
     record_deposit_event(&deposit_event);

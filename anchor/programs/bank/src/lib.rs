@@ -43,7 +43,7 @@ pub mod bank {
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        require!(amount > 0, BankErrors::ZeroAmountToDeposit);
+        require!(amount >= MIN_USDC_DEPOSIT, BankErrors::NotEnoughAmountToDeposit);
 
         let bank_state = &mut ctx.accounts.bank_state;
         

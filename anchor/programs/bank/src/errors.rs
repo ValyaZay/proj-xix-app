@@ -17,8 +17,8 @@ pub enum BankErrors {
     #[msg("Zero Shares From Amount")]
     ZeroSharesFromAmount,
 
-    #[msg("Zero Amount To Deposit")]
-    ZeroAmountToDeposit,
+    #[msg("Not Enough Amount To Deposit")]
+    NotEnoughAmountToDeposit,
 
     #[msg("Bank Underfunded")]
     BankUnderfunded,
