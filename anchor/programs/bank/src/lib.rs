@@ -59,9 +59,9 @@ pub mod bank {
             });
         }
 
-        require!(user_state.user == ctx.accounts.user.key(), BankErrors::UserIsWrong);
+        // safety invariant
+        require_keys_eq!(user_state.user, ctx.accounts.user.key(), BankErrors::UserIsWrong);
 
-        // deposit - TODO - add test
         let received = transfer_from_ata_to_token_account(
             &mut ctx.accounts.bank_token_account,
             ctx.accounts.user_associated_token_account.to_account_info(),
