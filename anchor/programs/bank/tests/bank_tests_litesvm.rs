@@ -164,11 +164,23 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let init_total_assets = init_bank_state.total_deposits;
     let init_total_shares = init_bank_state.total_deposit_shares;
 
+    let init_bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    let init_bank_token_account_balance = init_bank_token_account.amount;
+
     // Arrange - depositor
+    let amount_to_deposit = MIN_USDC_DEPOSIT;
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    //let depositor_sol_account_balance_init = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
+
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
-    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
+    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 2).unwrap();
+    let user_ata_account: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    let init_user_ata_balance = user_ata_account.amount;
+    assert_eq!(init_user_ata_balance, amount_to_deposit * 2);
+
+    let depositor_sol_account_balance_init = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
+    println!("depositor_sol_account_balance_init {}", depositor_sol_account_balance_init);
     
     let init_user_state = match ctx.get_account::<User>(&user_state_pda) {
         Ok(account) => account,
@@ -184,8 +196,8 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let init_user_deposit_usdc_shares = init_user_state.deposit_usdc_shares;
 
     // Act
-    let amount_to_deposit = MIN_USDC_DEPOSIT;
     let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+
     let result = ctx
     .execute_instruction(inx, &[&depositor])
     .unwrap();
@@ -209,11 +221,18 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
 
     // Assert - BankTokenAccount
     let bank_token_account_updated: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-    assert_eq!(bank_token_account_updated.amount, MIN_USDC_DEPOSIT);
-    println!("bank_token_account_updated.amount {}", bank_token_account_updated.amount);
+    assert_eq!(bank_token_account_updated.amount, init_bank_token_account_balance + amount_to_deposit);
 
     // Assert - User ATA
-    
+    let user_ata_account_updated: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    assert_eq!(user_ata_account_updated.amount, init_user_ata_balance - amount_to_deposit);
+
+    // Assert - fees are paid by the depositor
+    let tx_fee_to_validator = &result.inner().fee;
+    let sol_user_state_balance = ctx.svm.get_balance(&user_state_pda).unwrap(); // user state account was created during deposit inx
+    let depositor_sol_account_balance_updated = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
+    assert_eq!(depositor_sol_account_balance_init, depositor_sol_account_balance_updated + tx_fee_to_validator + sol_user_state_balance);
+
     // Record event
     record_deposit_event(&deposit_event);
 }
