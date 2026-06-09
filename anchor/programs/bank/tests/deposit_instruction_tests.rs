@@ -1,128 +1,24 @@
 
-use std::io::ErrorKind;
-
-use anchor_lang::{self};
-use anchor_lang::declare_program;
-use anchor_litesvm::{ AccountError, AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers};
-use anchor_spl::token::accessor::amount;
+use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent},
     constants::MIN_USDC_DEPOSIT,
     shares_math::convert_assets_to_shares,
 };
-use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
-mod event_recorder;
-use event_recorder::*;
+mod utils;
+use utils::*;
 
 mod invariants_tests;
 use invariants_tests::*;
 
-
-declare_program!(bank);
-
-use self::bank::{
-    client::{accounts, args},
+use utils::bank::{
     accounts::{User, Bank},
     //events::DepositEvent, //import from idl modules
 };
 
-
-const PROGRAM_BYTES: &[u8] = include_bytes!("../../../target/deploy/bank.so");
-
-fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
-    let ctx = AnchorLiteSVM::build_with_program(self::bank::ID, PROGRAM_BYTES);
-    ctx
-}
-
-fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) {
-    let ix = ctx
-        .program()
-        .accounts(accounts::InitBank {
-            authority: bank_authority.pubkey(),
-            mint: *mint,
-            bank_state: *bank_pda,
-            bank_token_account: *bank_token_account_pda,
-            token_program: anchor_spl::token::ID,
-            system_program: anchor_lang::system_program::ID,
-        })
-        .args(args::InitBank {})
-        .instruction()
-        .unwrap();
-
-    let result = ctx.execute_instruction(ix, &[&bank_authority]).unwrap();
-    result.assert_success();
-    
-    ctx.svm.assert_account_exists(bank_pda);
-    ctx.svm.assert_account_exists(bank_token_account_pda);
-}
-    
-fn get_deposit_inx(ctx: &mut AnchorContext, user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey, amount: u64) -> Instruction {
-    let deposit_accounts = accounts::Deposit {
-        user: *depositor,
-        user_state: *user_state_pda,
-        bank_state: *bank_pda,
-        mint: *mint,
-        user_associated_token_account: *user_ata,
-        bank_token_account: *bank_token_account_pda,
-        token_program: anchor_spl::token::ID,
-        system_program: anchor_lang::system_program::ID,
-        associated_token_program: anchor_spl::associated_token::ID,
-    };
-
-    ctx
-        .program()
-        .accounts(deposit_accounts)
-        .args(args::Deposit { amount: amount })
-        .instruction()
-        .unwrap()
-}
-
-fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypair) {
-    let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
-    ctx.svm.assert_account_exists(&mint.pubkey());
-    (mint.pubkey(), mint_authority)
-}
-
-fn get_bank_account_pda(mint: Pubkey, authority: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref(), authority.as_ref()], &self::bank::ID).0
-}
-
-fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0
-}
-
-fn get_user_account_pda(user: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"SEED_USER_STATE", user.as_ref()], &self::bank::ID).0
-}
-
-#[test]
-fn should_init_bank() {
-    // Arrange
-    let mut ctx = init_anchor_ctx();
-    let (mint, _) = get_mint_pubkey_and_authority(&mut ctx);
-
-    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
-
-    // Act
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
-
-    // Assert
-    let bank_account: Bank = ctx.get_account(&bank_pda).unwrap();
-    assert_eq!(bank_account.authority, bank_authority.pubkey());
-    assert_eq!(bank_account.mint, mint);
-    assert_eq!(bank_account.total_deposits, 0);
-    assert_eq!(bank_account.total_deposit_shares, 0);
-
-    let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-    assert_eq!(bank_token_account.mint, mint);
-    assert_eq!(bank_token_account.amount, 0);
-}
 
 #[test]
 fn deposit_should_revert_if_amount_is_less_than_allowed() {
