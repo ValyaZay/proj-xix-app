@@ -19,6 +19,8 @@ use utils::bank::{
     //events::DepositEvent, //import from idl modules
 };
 
+//TODO randomize amount to deposit, add user checks
+
 #[test]
 fn deposits_in_raw_should_update_state() {
     // Arrange
