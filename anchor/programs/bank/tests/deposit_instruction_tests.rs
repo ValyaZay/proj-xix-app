@@ -3,7 +3,7 @@ use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent},
-    constants::MIN_USDC_DEPOSIT,
+    constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT},
     shares_math::convert_assets_to_shares,
 };
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
@@ -48,6 +48,36 @@ fn deposit_should_revert_if_amount_is_less_than_allowed() {
     .unwrap()
     .assert_failure()
     .assert_anchor_error("NotEnoughAmountToDeposit");
+}
+
+#[test]
+fn deposit_should_revert_if_amount_is_more_than_allowed() {
+    // Arrange
+    let mut ctx = init_anchor_ctx();
+    let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
+
+    // Arrange bank
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    
+    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+
+    // Arrange depositor
+    let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
+    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
+
+    let amount_to_deposit = MAX_USDC_DEPOSIT + 1;
+    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+
+    // Act / Assert
+    ctx
+    .execute_instruction(inx, &[&depositor])
+    .unwrap()
+    .assert_failure()
+    .assert_anchor_error("TooBigAmountToDeposit");
 }
 
 #[test]

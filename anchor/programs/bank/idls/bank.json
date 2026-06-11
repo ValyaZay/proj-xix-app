@@ -1,5 +1,5 @@
 {
-  "address": "FgK7twDm6ATfSppDzE4EAJQrxdpWFbWF3WGduEGNLB48",
+  "address": "FBoRgbyzzKkTzzvJ8zTVyEgnAVynQ9vGp6n1iQXXtp78",
   "metadata": {
     "name": "bank",
     "version": "0.1.0",
@@ -381,31 +381,26 @@
     },
     {
       "code": 6005,
-      "name": "BankTokenAccountOwnerIsWrong",
-      "msg": "Bank Token Account Owner Is Wrong"
+      "name": "NotEnoughAmountToDeposit",
+      "msg": "Not Enough Amount To Deposit"
     },
     {
       "code": 6006,
-      "name": "ZeroAmountToDeposit",
-      "msg": "Zero Amount To Deposit"
-    },
-    {
-      "code": 6007,
       "name": "BankUnderfunded",
       "msg": "Bank Underfunded"
     },
     {
-      "code": 6008,
+      "code": 6007,
       "name": "Overflow",
       "msg": "Overflow"
     },
     {
-      "code": 6009,
+      "code": 6008,
       "name": "DivisionByZero",
       "msg": "Division By Zero"
     },
     {
-      "code": 6010,
+      "code": 6009,
       "name": "UserIsWrong",
       "msg": "User Is Wrong"
     }

@@ -20,6 +20,9 @@ pub enum BankErrors {
     #[msg("Not Enough Amount To Deposit")]
     NotEnoughAmountToDeposit,
 
+    #[msg("Too Big Amount To Deposit")]
+    TooBigAmountToDeposit,
+
     #[msg("Bank Underfunded")]
     BankUnderfunded,
 

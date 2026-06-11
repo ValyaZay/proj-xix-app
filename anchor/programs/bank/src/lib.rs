@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("FgK7twDm6ATfSppDzE4EAJQrxdpWFbWF3WGduEGNLB48");
+declare_id!("FBoRgbyzzKkTzzvJ8zTVyEgnAVynQ9vGp6n1iQXXtp78");
 
 #[program]
 pub mod bank {
@@ -44,6 +44,7 @@ pub mod bank {
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         require!(amount >= MIN_USDC_DEPOSIT, BankErrors::NotEnoughAmountToDeposit);
+        require!(amount <= MAX_USDC_DEPOSIT, BankErrors::TooBigAmountToDeposit);
 
         let bank_state = &mut ctx.accounts.bank_state;
         
