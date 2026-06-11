@@ -3,10 +3,11 @@ use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent},
-    constants::MIN_USDC_DEPOSIT,
+    constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT },
     shares_math::convert_assets_to_shares,
 };
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
+use rand::RngExt;
 
 mod utils;
 use utils::*;
@@ -34,13 +35,12 @@ fn deposits_in_raw_should_update_state() {
 
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
-    // Arrange - depositor
-    let amount_to_deposit = MIN_USDC_DEPOSIT;//TODO move to loop when randomize
+    // Arrange - depositor    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
-    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 100).unwrap();
+    ctx.svm.mint_to(&mint, &user_ata, &mint_authority, u64::MAX).unwrap();
 
     // Arrange - INIT STATE FOR THE BANK
     let init_bank_state:Bank = ctx.get_account(&bank_pda).unwrap();
@@ -68,11 +68,15 @@ fn deposits_in_raw_should_update_state() {
     let mut init_user_ata_balance = user_ata_account.amount;
 
     let mut num = 100;
+    let mut rng = rand::rng();
+    let mut clock: Clock = ctx.svm.get_sysvar();
     // Act
-    // 1. deposit -> RECORD EVENT -> state -> invariants check -> roll slot
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);// TODO MOVE THIS TO LOOP WHEN RANDOMIZE amount_to_deposit
-    
+    // 1. deposit -> RECORD EVENT -> state -> invariants check -> roll slot    
     while num != 0 {
+        let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
+
+        let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+
         let slot = ctx.svm.get_sysvar::<Clock>().slot;
         println!("slot {}", slot );
         println!("blockhash {}", ctx.latest_blockhash());
@@ -129,6 +133,10 @@ fn deposits_in_raw_should_update_state() {
         // 6. ROLL SLOT AND EXPIRE BLOCKHASH
         ctx.svm.advance_slot(500);
         ctx.svm.expire_blockhash();
+
+        // set timestamp for event record
+        clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
+        ctx.svm.set_sysvar(&clock);
         
         num -= 1;
     }
