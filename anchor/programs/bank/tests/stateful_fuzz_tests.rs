@@ -35,14 +35,14 @@ fn deposits_in_raw_should_update_state() {
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    let amount_to_deposit = MIN_USDC_DEPOSIT;
+    let amount_to_deposit = MIN_USDC_DEPOSIT;//TODO move to loop when randomize
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 100).unwrap();
 
-    // Arrange - bank state
+    // Arrange - INIT STATE FOR THE BANK
     let init_bank_state:Bank = ctx.get_account(&bank_pda).unwrap();
     let mut init_total_assets = init_bank_state.total_deposits;
     let mut init_total_shares = init_bank_state.total_deposit_shares;
@@ -50,10 +50,27 @@ fn deposits_in_raw_should_update_state() {
     let init_bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     let mut init_bank_token_account_balance = init_bank_token_account.amount;
 
+    // Arrange - INIT STATE FOR THE USER
+    let init_user_state = match ctx.get_account::<User>(&user_state_pda) {
+        Ok(account) => account,
+        Err(error) => {
+            match error {
+                AccountError::AccountNotFound(_) => {
+                    User::default()
+                }
+                _ => panic!("Some problem when getting user account!")
+            }
+        }
+    };
+    let mut init_user_deposit_usdc_shares = init_user_state.deposit_usdc_shares;
+
+    let user_ata_account: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    let mut init_user_ata_balance = user_ata_account.amount;
+
     let mut num = 100;
     // Act
-    // 1. deposit -> state -> invariants check -> roll slot
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    // 1. deposit -> RECORD EVENT -> state -> invariants check -> roll slot
+    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);// TODO MOVE THIS TO LOOP WHEN RANDOMIZE amount_to_deposit
     
     while num != 0 {
         let slot = ctx.svm.get_sysvar::<Clock>().slot;
@@ -62,14 +79,22 @@ fn deposits_in_raw_should_update_state() {
 
         println!("starter init_total_assets {}, num {}", init_total_assets, num);
         println!("starter init_total_shares {}, num {}", init_total_shares, num);
+        
+        // shares
+         let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets);
+        
+        // 1. DEPOSIT
         let result = ctx
         .execute_instruction(inx.clone(), &[&depositor])
         .unwrap();
         println!("result {:?}", result);
 
-        // shares
-         let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets);
+        // 2. RECORD EVENT
+        result.assert_event_emitted::<DepositEvent>();
+        let deposit_event: DepositEvent = result.parse_event().unwrap();
+        record_deposit_event(&deposit_event);
 
+        // 3. CHECK BANK STATE
         // bank state
         let updated_bank_state:Bank = ctx.get_account(&bank_pda).unwrap();
         println!("updated_bank_state.total_deposits {}, num {}", updated_bank_state.total_deposits, num);
@@ -85,14 +110,27 @@ fn deposits_in_raw_should_update_state() {
         assert_eq!(updated_bank_token_account.amount, amount_to_deposit + init_bank_token_account_balance);
         init_bank_token_account_balance = updated_bank_token_account.amount;
 
-        num -= 1;
+        // 4. CHECK USER STATE
+        // check user
+        let updated_user_state: User = ctx.get_account(&user_state_pda).unwrap();
+        assert_eq!(updated_user_state.deposit_usdc_shares, init_user_deposit_usdc_shares + shares_to_be_added_from_amount);
+        init_user_deposit_usdc_shares = updated_user_state.deposit_usdc_shares;
 
-        // invariant check
+        // check user ata
+        let updated_user_ata_account_updated: TokenAccount = ctx.get_account(&user_ata).unwrap();
+        assert_eq!(updated_user_ata_account_updated.amount, init_user_ata_balance - amount_to_deposit);
+        init_user_ata_balance = updated_user_ata_account_updated.amount;
+
+        // 5. CHECK INVARIANTS
         bank_token_account_balance_not_less_than_bank_total_deposits(updated_bank_token_account.amount, updated_bank_state.total_deposits);
 
-        // roll slot
+        sum_of_users_deposit_shares_equals_bank_total_deposit_shares(updated_user_state.deposit_usdc_shares, updated_bank_state.total_deposit_shares);
+
+        // 6. ROLL SLOT AND EXPIRE BLOCKHASH
         ctx.svm.advance_slot(500);
         ctx.svm.expire_blockhash();
+        
+        num -= 1;
     }
     
 
