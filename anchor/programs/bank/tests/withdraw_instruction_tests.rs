@@ -1,18 +1,21 @@
+use anchor_litesvm::{self, TestHelpers, Signer, EventHelpers};
 
-
+use anchor_spl::token_2022::spl_token_2022::extension::confidential_transfer::instruction::ConfidentialTransferInstruction::Withdraw;
+use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use utils::bank::{
-    client::{accounts::{Withdraw}},
+    client::{accounts, args},
     //accounts::{User, Bank},
     //events::DepositEvent, //import from idl modules
 };
 
-use ::bank::constants::MIN_USDC_DEPOSIT;//import from external crate
+use ::bank::{constants::MIN_USDC_DEPOSIT, events::WithdrawEvent};//import from external crate
 
 
 
 mod utils;
 use utils::*;
 
+#[test]
 fn withdraw_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     // Arrange
     let mut ctx = init_anchor_ctx();
@@ -36,12 +39,14 @@ fn withdraw_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     // Deposit
     let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
-    let result = ctx
+    ctx
     .execute_instruction(deposit_inx, &[&depositor])
     .unwrap();
 
+    // state before withdraw
+
     // Withdraw
-    let withdraw_accounts = Withdraw {
+    let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
         user_state: user_state_pda,
         bank_state: bank_pda,
@@ -51,6 +56,31 @@ fn withdraw_should_update_bank_and_user_states_and_token_accounts_and_emit() {
         token_program: anchor_spl::token::ID,
         system_program: anchor_lang::system_program::ID,
     };
-    let withdraw_inx = 
+    let withdraw_inx = ctx
+        .program()
+        .accounts(withdraw_accounts)
+        .args(args::Withdraw {assets_amount_to_withdraw: amount_to_deposit})
+        .instruction()
+        .unwrap();
+    let withdraw_result = ctx
+        .execute_instruction(withdraw_inx, &[&depositor])
+        .unwrap();
+
+    // state after withdraw
+
+    // Assert - WithdrawEvent
+    withdraw_result.assert_event_emitted::<WithdrawEvent>();
+    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+    assert_eq!(withdraw_event.user, depositor.pubkey());
+    assert_eq!(withdraw_event.amount, amount_to_deposit);
+    assert_eq!(withdraw_event.shares, amount_to_deposit); 
+
+    // Assert - bank state
+
+    // Assert - bank token account state
+
+    // Assert - user state
+
+    // Assert - user ata state
 }
     

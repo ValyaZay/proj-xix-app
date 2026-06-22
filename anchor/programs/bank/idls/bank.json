@@ -523,7 +523,7 @@
       ],
       "args": [
         {
-          "name": "_assets_amount_to_withdraw",
+          "name": "assets_amount_to_withdraw",
           "type": "u64"
         }
       ]

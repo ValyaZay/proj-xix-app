@@ -96,7 +96,7 @@ pub mod bank {
         Ok(())
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, _assets_amount_to_withdraw: u64) -> Result<()> {
+    pub fn withdraw(ctx: Context<Withdraw>, assets_amount_to_withdraw: u64) -> Result<()> {
         let user_state = &mut ctx.accounts.user_state;
         
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
@@ -109,8 +109,8 @@ pub mod bank {
         // emit event
         emit!(WithdrawEvent {
             user: user_state.user,
-            amount: actually_withdrawn_assets,
-            shares: actually_withdrawn_shares, 
+            amount: assets_amount_to_withdraw,
+            shares: assets_amount_to_withdraw, 
             timestamp: Clock::get()?.unix_timestamp,
         });
 
