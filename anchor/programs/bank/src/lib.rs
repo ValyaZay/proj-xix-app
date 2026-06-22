@@ -95,6 +95,29 @@ pub mod bank {
 
         Ok(())
     }
+
+    pub fn withdraw(ctx: Context<Withdraw>, _assets_amount_to_withdraw: u64) -> Result<()> {
+        let user_state = &mut ctx.accounts.user_state;
+        
+        // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
+        // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user hase => withdraw assets_amount_to_withdraw
+        
+        let actually_withdrawn_assets = 0;
+        let actually_withdrawn_shares = 0;
+
+        // withdraw from bank token acc to user associated token account
+        // emit event
+        emit!(WithdrawEvent {
+            user: user_state.user,
+            amount: actually_withdrawn_assets,
+            shares: actually_withdrawn_shares, 
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        // close user state id shares == 0
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -171,5 +194,49 @@ pub struct Deposit<'info> {
 
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Interface<'info, TokenInterface>, 
+}
+
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [SEED_USER_STATE, user.key().as_ref()],
+        bump,
+    )]
+    pub user_state: Account<'info, User>,
+
+    #[account(
+        mut,
+        has_one = mint @ BankErrors::MintForBankIsWrong,
+        constraint = bank_state.mint.key() == user_associated_token_account.mint.key() @ BankErrors::UserAtaForBankIsWrong,
+        seeds = [SEED_BANK_STATE, mint.key().as_ref(), bank_state.authority.as_ref()],
+        bump,
+    )]
+    pub bank_state: Account<'info, Bank>,
+
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = user,
+        associated_token::token_program = token_program,
+    )]
+    pub user_associated_token_account: InterfaceAccount<'info, TokenAccount>,
+    
+    #[account(
+        mut,
+        seeds = [SEED_BANK_TOKEN_ACCOUNT, mint.key().as_ref()],
+        token::authority = bank_token_account,
+        token::mint = mint,
+        bump,
+    )]
+    pub bank_token_account: InterfaceAccount<'info, TokenAccount>,
+
+    pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>, 
 }

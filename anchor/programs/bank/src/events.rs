@@ -9,6 +9,14 @@ pub struct DepositEvent {
     pub timestamp: i64,
 }
 
+#[event]
+pub struct WithdrawEvent {
+    pub user: Pubkey,
+    pub amount: u64,
+    pub shares: u64,
+    pub timestamp: i64,
+}
+
 #[derive(Serialize)]
 pub struct DepositEventJson {
     pub user: String,
