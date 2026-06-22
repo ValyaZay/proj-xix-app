@@ -32,6 +32,6 @@ pub enum BankErrors {
     #[msg("Division By Zero")]
     DivisionByZero,
 
-    #[msg("User Is Wrong")]
-    UserIsWrong,
+    #[msg("Unauthorized Access")]
+    UnauthorizedAccess,
 }

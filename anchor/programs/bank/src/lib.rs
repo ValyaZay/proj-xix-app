@@ -61,7 +61,7 @@ pub mod bank {
         }
 
         // safety invariant
-        require_keys_eq!(user_state.user, ctx.accounts.user.key(), BankErrors::UserIsWrong);
+        require_keys_eq!(user_state.user, ctx.accounts.user.key(), BankErrors::UnauthorizedAccess);
 
         let received = transfer_from_ata_to_token_account(
             &mut ctx.accounts.bank_token_account,
@@ -98,23 +98,37 @@ pub mod bank {
 
     pub fn withdraw(ctx: Context<Withdraw>, assets_amount_to_withdraw: u64) -> Result<()> {
         let user_state = &mut ctx.accounts.user_state;
+        let bank_state = &mut ctx.accounts.bank_state;
+        
+        // invariant check
+        require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
+
+        // how many assets does the user have?
+        let actual_assets_user_has = convert_shares_to_assets(user_state.deposit_usdc_shares, bank_state.total_deposit_shares, bank_state.total_deposits);
         
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
-        // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user hase => withdraw assets_amount_to_withdraw
-        
-        let actually_withdrawn_assets = 0;
-        let actually_withdrawn_shares = 0;
+        // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user has => withdraw assets_amount_to_withdraw
+        let (actual_assets_amount_to_withdraw, actual_shares_amount_to_withdraw) = 
+            if actual_assets_user_has < assets_amount_to_withdraw.checked_add(MIN_USDC_DEPOSIT).unwrap()
+            {
+                (actual_assets_user_has, user_state.deposit_usdc_shares)
+            } else {
+                (assets_amount_to_withdraw, convert_assets_to_shares(assets_amount_to_withdraw, bank_state.total_deposit_shares, bank_state.total_deposits))
+            };
 
-        // withdraw from bank token acc to user associated token account
+        // update bank_state
+
+        // transfer from bank token account PDA to user ata
+        
         // emit event
         emit!(WithdrawEvent {
             user: user_state.user,
-            amount: assets_amount_to_withdraw,
-            shares: assets_amount_to_withdraw, 
+            amount: actual_assets_amount_to_withdraw,
+            shares: actual_shares_amount_to_withdraw, 
             timestamp: Clock::get()?.unix_timestamp,
         });
 
-        // close user state id shares == 0
+        // close user state if shares == 0
 
         Ok(())
     }
@@ -204,6 +218,7 @@ pub struct Withdraw<'info> {
 
     #[account(
         mut,
+        has_one = user @ BankErrors::UnauthorizedAccess,
         seeds = [SEED_USER_STATE, user.key().as_ref()],
         bump,
     )]
