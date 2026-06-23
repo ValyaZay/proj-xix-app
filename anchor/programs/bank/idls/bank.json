@@ -339,7 +339,10 @@
         {
           "name": "user",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "user_state"
+          ]
         },
         {
           "name": "user_state",
@@ -594,8 +597,8 @@
     },
     {
       "code": 6004,
-      "name": "ZeroSharesFromAmount",
-      "msg": "Zero Shares From Amount"
+      "name": "ZeroSharesFromDeposit",
+      "msg": "Zero Shares From Deposit"
     },
     {
       "code": 6005,
@@ -614,18 +617,28 @@
     },
     {
       "code": 6008,
+      "name": "InvalidBankState",
+      "msg": "Invalid Bank State"
+    },
+    {
+      "code": 6009,
       "name": "Overflow",
       "msg": "Overflow"
     },
     {
-      "code": 6009,
+      "code": 6010,
       "name": "DivisionByZero",
       "msg": "Division By Zero"
     },
     {
-      "code": 6010,
-      "name": "UserIsWrong",
-      "msg": "User Is Wrong"
+      "code": 6011,
+      "name": "UnauthorizedAccess",
+      "msg": "Unauthorized Access"
+    },
+    {
+      "code": 6012,
+      "name": "InsufficientUserShares",
+      "msg": "Insufficient User Shares"
     }
   ],
   "types": [

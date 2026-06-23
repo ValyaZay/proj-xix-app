@@ -14,8 +14,8 @@ pub enum BankErrors {
     #[msg("Not Enough Tokens Transferred")]
     NotEnoughTokensTransferred,
 
-    #[msg("Zero Shares From Amount")]
-    ZeroSharesFromAmount,
+    #[msg("Zero Shares From Deposit")]
+    ZeroSharesFromDeposit,
 
     #[msg("Not Enough Amount To Deposit")]
     NotEnoughAmountToDeposit,
@@ -26,6 +26,9 @@ pub enum BankErrors {
     #[msg("Bank Underfunded")]
     BankUnderfunded,
 
+    #[msg("Invalid Bank State")]
+    InvalidBankState,
+
     #[msg("Overflow")]
     Overflow,
 
@@ -34,4 +37,7 @@ pub enum BankErrors {
 
     #[msg("Unauthorized Access")]
     UnauthorizedAccess,
+
+    #[msg("Insufficient User Shares")]
+    InsufficientUserShares,
 }

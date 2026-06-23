@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl:: {
     associated_token::AssociatedToken,
-    token_interface::{TokenAccount, Mint, TokenInterface}
+    token_interface::{TokenAccount, Mint, TokenInterface, TransferChecked, self}
 };
 
 pub mod tests;
@@ -78,7 +78,7 @@ pub mod bank {
         // calculate shares
         let shares = convert_assets_to_shares(amount, bank_state.total_deposit_shares, bank_state.total_deposits);
 
-        require!(shares > 0, BankErrors::ZeroSharesFromAmount);
+        require!(shares > 0, BankErrors::ZeroSharesFromDeposit);
 
         // update bank and user state
         bank_state.total_deposit_shares = bank_state.total_deposit_shares.checked_add(shares).ok_or(BankErrors::Overflow)?;
@@ -102,33 +102,71 @@ pub mod bank {
         
         // invariant check
         require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
+        require!(bank_state.total_deposit_shares >= user_state.deposit_usdc_shares, BankErrors::InvalidBankState);
 
         // how many assets does the user have?
         let actual_assets_user_has = convert_shares_to_assets(user_state.deposit_usdc_shares, bank_state.total_deposit_shares, bank_state.total_deposits);
         
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user has => withdraw assets_amount_to_withdraw
-        let (actual_assets_amount_to_withdraw, actual_shares_amount_to_withdraw) = 
+        let (actual_assets_amount_to_withdraw, actual_shares_amount_to_burn) = 
             if actual_assets_user_has < assets_amount_to_withdraw.checked_add(MIN_USDC_DEPOSIT).unwrap()
             {
                 (actual_assets_user_has, user_state.deposit_usdc_shares)
             } else {
                 (assets_amount_to_withdraw, convert_assets_to_shares(assets_amount_to_withdraw, bank_state.total_deposit_shares, bank_state.total_deposits))
             };
-
-        // update bank_state
+        require!(user_state.deposit_usdc_shares >= actual_shares_amount_to_burn, BankErrors::InsufficientUserShares);
+        require!(bank_state.total_deposits >= actual_assets_amount_to_withdraw, BankErrors::BankUnderfunded);
 
         // transfer from bank token account PDA to user ata
+        let transfer_cpi_accounts = TransferChecked {
+            from: ctx.accounts.bank_token_account.to_account_info(),
+            to: ctx.accounts.user_associated_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
+            authority: ctx.accounts.bank_token_account.to_account_info(),
+        };
+
+        let mint_key = ctx.accounts.mint.key();
+
+        let signer_seeds: &[&[&[u8]]] = &[
+            &[
+                SEED_BANK_TOKEN_ACCOUNT, mint_key.as_ref(),
+                &[
+                    ctx.bumps.bank_token_account,
+                ]
+            ]
+        ];
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            transfer_cpi_accounts,
+            signer_seeds);
         
+        token_interface::transfer_checked(
+            cpi_ctx, 
+            actual_assets_amount_to_withdraw, 
+            ctx.accounts.mint.decimals)?;
+
+        // update bank_state
+        bank_state.total_deposits = bank_state.total_deposits.checked_sub(actual_assets_amount_to_withdraw).ok_or(BankErrors::Overflow)?;
+        bank_state.total_deposit_shares = bank_state.total_deposit_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
+
+        // update user_state
+        user_state.deposit_usdc_shares = user_state.deposit_usdc_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
+
         // emit event
         emit!(WithdrawEvent {
             user: user_state.user,
             amount: actual_assets_amount_to_withdraw,
-            shares: actual_shares_amount_to_withdraw, 
+            shares: actual_shares_amount_to_burn, 
             timestamp: Clock::get()?.unix_timestamp,
         });
 
         // close user state if shares == 0
+        if user_state.deposit_usdc_shares == 0 {
+            user_state.close(ctx.accounts.user.to_account_info())?;
+        }
 
         Ok(())
     }
