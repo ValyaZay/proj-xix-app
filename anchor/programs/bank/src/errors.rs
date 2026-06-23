@@ -43,4 +43,7 @@ pub enum BankErrors {
 
     #[msg("Insufficient User Shares")]
     InsufficientUserShares,
+
+    #[msg("Zero Amount To Withdraw")]
+    ZeroAmountToWithdraw,
 }

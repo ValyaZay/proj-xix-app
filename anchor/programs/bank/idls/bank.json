@@ -602,43 +602,53 @@
     },
     {
       "code": 6005,
+      "name": "ZeroSharesToBurn",
+      "msg": "Zero Shares To Burn"
+    },
+    {
+      "code": 6006,
       "name": "NotEnoughAmountToDeposit",
       "msg": "Not Enough Amount To Deposit"
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "TooBigAmountToDeposit",
       "msg": "Too Big Amount To Deposit"
     },
     {
-      "code": 6007,
+      "code": 6008,
       "name": "BankUnderfunded",
       "msg": "Bank Underfunded"
     },
     {
-      "code": 6008,
+      "code": 6009,
       "name": "InvalidBankState",
       "msg": "Invalid Bank State"
     },
     {
-      "code": 6009,
+      "code": 6010,
       "name": "Overflow",
       "msg": "Overflow"
     },
     {
-      "code": 6010,
+      "code": 6011,
       "name": "DivisionByZero",
       "msg": "Division By Zero"
     },
     {
-      "code": 6011,
+      "code": 6012,
       "name": "UnauthorizedAccess",
       "msg": "Unauthorized Access"
     },
     {
-      "code": 6012,
+      "code": 6013,
       "name": "InsufficientUserShares",
       "msg": "Insufficient User Shares"
+    },
+    {
+      "code": 6014,
+      "name": "ZeroAmountToWithdraw",
+      "msg": "Zero Amount To Withdraw"
     }
   ],
   "types": [
