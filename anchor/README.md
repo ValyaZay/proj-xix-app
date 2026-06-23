@@ -15,7 +15,7 @@ Make it simple and correct, testable, deployable, frontend-integratable.
 3. Close user.
 4. &#x2705; Deposit USDC. 
 5. &#x2705; Issue shares. There is no SPL token representation for shares, they are tracked internally per user and globally per bank. 
-6. Withdraw USDC proportional to user shares / total shares (no external yield source in Step 1).
+6. &#x2705; Withdraw USDC proportional to user shares / total shares (no external yield source in Step 1).
 
 **Not meant to be implemented**:
 1. No yield strategies.
@@ -30,7 +30,7 @@ Make it simple and correct, testable, deployable, frontend-integratable.
    - deposit/withdraw invariants:
      - &#x2705; sum of users deposit shares == bank total deposit shares
      - &#x2705; bank_token_account.amount >= bank_state.total_deposits
-   - double withdraw attempt;
+   - &#x2705; double withdraw attempt;
    - rounding edge cases;
    - zero deposit / zero share cases;
    - repeated deposit -> withdraw cycles.
@@ -58,7 +58,6 @@ Make it simple and correct, testable, deployable, frontend-integratable.
                                   randomly choose actions among:
                                       init_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                       deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                      withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                       withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                       close_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                 }
