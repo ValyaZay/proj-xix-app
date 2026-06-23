@@ -12,6 +12,9 @@ use ::bank::{constants::MIN_USDC_DEPOSIT, events::WithdrawEvent};//import from e
 mod utils;
 use utils::*;
 
+mod invariants_tests;
+use invariants_tests::*;
+
 #[test]
 fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     // deposit MIN_USDC_DEPOSIT amount -> withdraw MIN_USDC_DEPOSIT amount -> close user acc
@@ -102,4 +105,11 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
     assert_eq!(withdraw_event.user, depositor.pubkey());
     assert_eq!(withdraw_event.amount, amount_to_deposit_and_withdraw);
     assert_eq!(withdraw_event.shares, amount_to_deposit_and_withdraw);
+
+    // invariants check
+    let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
+
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(0, after_withdraw_bank_state.total_deposit_shares);
+
 }

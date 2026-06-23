@@ -134,7 +134,7 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     .unwrap();
 
     // Assert - DepositEvent
-    let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets);
+    let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets, false);
     result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = result.parse_event().unwrap();
     assert_eq!(deposit_event.user, depositor.pubkey());

@@ -85,7 +85,7 @@ fn deposits_in_raw_should_update_state() {
         println!("starter init_total_shares {}, num {}", init_total_shares, num);
         
         // shares
-         let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets);
+         let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets, false);
         
         // 1. DEPOSIT
         let result = ctx

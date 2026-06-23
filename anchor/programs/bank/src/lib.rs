@@ -76,7 +76,7 @@ pub mod bank {
         let amount = received;
 
         // calculate shares
-        let shares = convert_assets_to_shares(amount, bank_state.total_deposit_shares, bank_state.total_deposits);
+        let shares = convert_assets_to_shares(amount, bank_state.total_deposit_shares, bank_state.total_deposits, false);
 
         require!(shares > 0, BankErrors::ZeroSharesFromDeposit);
 
@@ -110,12 +110,13 @@ pub mod bank {
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user has => withdraw assets_amount_to_withdraw
         let (actual_assets_amount_to_withdraw, actual_shares_amount_to_burn) = 
-            if actual_assets_user_has < assets_amount_to_withdraw.checked_add(MIN_USDC_DEPOSIT).unwrap()
+            if actual_assets_user_has < assets_amount_to_withdraw.checked_add(MIN_USDC_DEPOSIT).ok_or(BankErrors::Overflow)?
             {
                 (actual_assets_user_has, user_state.deposit_usdc_shares)
             } else {
-                (assets_amount_to_withdraw, convert_assets_to_shares(assets_amount_to_withdraw, bank_state.total_deposit_shares, bank_state.total_deposits))
+                (assets_amount_to_withdraw, convert_assets_to_shares(assets_amount_to_withdraw, bank_state.total_deposit_shares, bank_state.total_deposits, true))
             };
+        require!(actual_shares_amount_to_burn > 0, BankErrors::ZeroSharesToBurn);
         require!(user_state.deposit_usdc_shares >= actual_shares_amount_to_burn, BankErrors::InsufficientUserShares);
         require!(bank_state.total_deposits >= actual_assets_amount_to_withdraw, BankErrors::BankUnderfunded);
 

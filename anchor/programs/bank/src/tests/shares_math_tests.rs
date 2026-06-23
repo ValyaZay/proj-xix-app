@@ -7,29 +7,29 @@ mod convert_assets_to_shares {
         let init_total_assets = MIN_USDC_DEPOSIT;
         let init_total_shares = MIN_USDC_DEPOSIT;
 
-        let shares_1 = convert_assets_to_shares(MIN_USDC_DEPOSIT, init_total_shares, init_total_shares);
+        let shares_1 = convert_assets_to_shares(MIN_USDC_DEPOSIT, init_total_shares, init_total_shares, false);
 
-        let shares_2 = convert_assets_to_shares(MIN_USDC_DEPOSIT * 2, init_total_shares + shares_1, init_total_assets + MIN_USDC_DEPOSIT);
+        let shares_2 = convert_assets_to_shares(MIN_USDC_DEPOSIT * 2, init_total_shares + shares_1, init_total_assets + MIN_USDC_DEPOSIT, false);
 
         assert_eq!(shares_2, 2 * shares_1);
     }
 
     #[test]
     fn should_return_zero_shares_if_zero_assets() {
-        let result = convert_assets_to_shares(0, MIN_USDC_DEPOSIT, MIN_USDC_DEPOSIT);
+        let result = convert_assets_to_shares(0, MIN_USDC_DEPOSIT, MIN_USDC_DEPOSIT, false);
 
         assert_eq!(result, 0);
     }
 
     #[test]
     fn should_return_shares_amount_equal_to_assets_amount_if_total_assets_is_zero() {
-        let result = convert_assets_to_shares(MIN_USDC_DEPOSIT, 0, 0);
+        let result = convert_assets_to_shares(MIN_USDC_DEPOSIT, 0, 0, false);
         assert_eq!(result, MIN_USDC_DEPOSIT);
     }
 
      #[test]
     fn should_return_one_share_when_minimal_bank_state() {
-        let result = convert_assets_to_shares(1, 1, 1);
+        let result = convert_assets_to_shares(1, 1, 1, false);
 
         assert_eq!(result, 1);
     }
@@ -40,7 +40,7 @@ mod convert_assets_to_shares {
         let total_assets_amount: u64 = MIN_USDC_DEPOSIT;
         let total_shares: u64 = MIN_USDC_DEPOSIT;
 
-        let result = convert_assets_to_shares(assets_amount, total_shares, total_assets_amount);
+        let result = convert_assets_to_shares(assets_amount, total_shares, total_assets_amount, false);
 
         let expected_result_u128 = (total_shares as u128)
                                             .checked_mul(assets_amount as u128).unwrap()
