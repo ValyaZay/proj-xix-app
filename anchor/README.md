@@ -37,10 +37,10 @@ Make it simple and correct, testable, deployable, frontend-integratable.
 3. Stateful fuzzing - scenarios:
    1. &#x2705; init_bank -> init_user -> for _ 0..100 { deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash } 
 
-   2. init_bank -> init_user -> for _ 0..100 { 
-                                                deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                                withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                              }
+   2. init_bank -> for _ 0..100 { init_user -> 
+                                  deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                  withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                }
    
    3. init_bank -> init_user -> for _ 0..100 { 
                                                 deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
