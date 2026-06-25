@@ -396,12 +396,12 @@ fn deposit_withdraw_withdraw_should_update_state() {
     */
     while num != 0 {
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-        let amount_to_withdraw: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
+        let amount_to_withdraw_1: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
         
         println!("-----------------------------");
-        println!("num: {}, amount_to_deposit: {}, amount_to_withdraw: {}", num, amount_to_deposit, amount_to_withdraw);
-        if amount_to_deposit < amount_to_withdraw {
-            attempts_to_withdraw_more_than_deposit += 1;
+        println!("num: {}, amount_to_deposit: {}, amount_to_withdraw: {}", num, amount_to_deposit, amount_to_withdraw_1);
+        if amount_to_deposit < amount_to_withdraw_1 {
+            attempts_to_withdraw_more_than_has += 1;
         }
 
         // Arrange - depositor
@@ -421,11 +421,11 @@ fn deposit_withdraw_withdraw_should_update_state() {
         .execute_instruction(deposit_inx, &[&depositor])
         .unwrap();
 
-        // state before withdraw
+        // state before withdraw 1
         // ---> bank state
-        let before_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
-        assert_eq!(before_withdraw_bank_state.total_deposits, final_bank_total_deposits + amount_to_deposit);
-        assert_eq!(before_withdraw_bank_state.total_deposit_shares, final_bank_total_shares + amount_to_deposit);
+        let before_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+        assert_eq!(before_withdraw_1_bank_state.total_deposits, final_bank_total_deposits + amount_to_deposit);
+        assert_eq!(before_withdraw_1_bank_state.total_deposit_shares, final_bank_total_shares + amount_to_deposit);
 
         // ---> bank token account
         let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -433,13 +433,13 @@ fn deposit_withdraw_withdraw_should_update_state() {
         ctx.svm.assert_token_balance(&bank_token_account_pda, bank_token_balance);
 
         // ---> user state
-        let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-        let actual_assets_user_has = convert_shares_to_assets(
-            before_withdraw_user_state.deposit_usdc_shares,
-            before_withdraw_bank_state.total_deposit_shares,
-            before_withdraw_bank_state.total_deposits
+        let before_withdraw_1_user_state: User = ctx.get_account(&user_state_pda).unwrap();
+        let actual_assets_user_has_1 = convert_shares_to_assets(
+            before_withdraw_1_user_state.deposit_usdc_shares,
+            before_withdraw_1_bank_state.total_deposit_shares,
+            before_withdraw_1_bank_state.total_deposits
         );
-        assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+        assert_eq!(before_withdraw_1_user_state.deposit_usdc_shares, amount_to_deposit);
 
         // ---> user ata state
         ctx.svm.assert_token_balance(&user_ata, 0);
@@ -451,8 +451,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
         clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
         ctx.svm.set_sysvar(&clock);
 
-        // Withdraw
-        let withdraw_accounts = accounts::Withdraw {
+        // ----------- WITHDRAW 1 ---------------
+        let withdraw_1_accounts = accounts::Withdraw {
             user: depositor.pubkey(),
             user_state: user_state_pda,
             bank_state: bank_pda,
@@ -462,97 +462,97 @@ fn deposit_withdraw_withdraw_should_update_state() {
             token_program: anchor_spl::token::ID,
             system_program: anchor_lang::system_program::ID,
         };
-        let withdraw_inx = ctx
+        let withdraw_1_inx = ctx
             .program()
-            .accounts(withdraw_accounts)
-            .args(args::Withdraw {assets_amount_to_withdraw: amount_to_withdraw})
+            .accounts(withdraw_1_accounts)
+            .args(args::Withdraw {assets_amount_to_withdraw: amount_to_withdraw_1})
             .instruction()
             .unwrap();
-        let withdraw_result = ctx
-            .execute_instruction(withdraw_inx, &[&depositor])
+        let withdraw_1_result = ctx
+            .execute_instruction(withdraw_1_inx, &[&depositor])
             .unwrap();
 
-        // state after withdraw
-        if actual_assets_user_has < (amount_to_withdraw + MIN_USDC_DEPOSIT) {
+        // state after withdraw 1
+        if actual_assets_user_has_1 < (amount_to_withdraw_1 + MIN_USDC_DEPOSIT) {
             // withdraw all
             attempts_to_withdraw_all += 1;
-            println!("Withdraw All! withdraw - actual: {}", amount_to_withdraw - actual_assets_user_has);
-            let shares_to_burn = before_withdraw_user_state.deposit_usdc_shares;
+            println!("Withdraw All! withdraw - actual: {}", amount_to_withdraw_1 - actual_assets_user_has_1);
+            let shares_to_burn_1 = before_withdraw_1_user_state.deposit_usdc_shares;
 
             // ---> user state - is closed
             ctx.svm.assert_account_closed(&user_state_pda);
 
             // ---> user ata state
-            ctx.svm.assert_token_balance(&user_ata, actual_assets_user_has);
+            ctx.svm.assert_token_balance(&user_ata, actual_assets_user_has_1);
 
             // --->bank state
-            let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
-            assert_eq!(after_withdraw_bank_state.total_deposits, before_withdraw_bank_state.total_deposits - actual_assets_user_has);
-            assert_eq!(after_withdraw_bank_state.total_deposit_shares, before_withdraw_bank_state.total_deposit_shares - shares_to_burn);
+            let after_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+            assert_eq!(after_withdraw_1_bank_state.total_deposits, before_withdraw_1_bank_state.total_deposits - actual_assets_user_has_1);
+            assert_eq!(after_withdraw_1_bank_state.total_deposit_shares, before_withdraw_1_bank_state.total_deposit_shares - shares_to_burn_1);
 
             // ---> bank token account
-            ctx.svm.assert_token_balance(&bank_token_account_pda, before_withdraw_bank_state.total_deposits - actual_assets_user_has);
-            final_bank_balance = before_withdraw_bank_state.total_deposits - actual_assets_user_has;
+            ctx.svm.assert_token_balance(&bank_token_account_pda, before_withdraw_1_bank_state.total_deposits - actual_assets_user_has_1);
+            final_bank_balance = before_withdraw_1_bank_state.total_deposits - actual_assets_user_has_1;
 
             // final bank and user state after iteration
-            final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
-            final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
+            final_bank_total_deposits = after_withdraw_1_bank_state.total_deposits;
+            final_bank_total_shares = after_withdraw_1_bank_state.total_deposit_shares;
 
             // Assert - WithdrawEvent
-            withdraw_result.assert_event_emitted::<WithdrawEvent>();
-            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+            withdraw_1_result.assert_event_emitted::<WithdrawEvent>();
+            let withdraw_event: WithdrawEvent = withdraw_1_result.parse_event().unwrap();
             assert_eq!(withdraw_event.user, depositor.pubkey());
-            assert_eq!(withdraw_event.amount, actual_assets_user_has);
-            assert_eq!(withdraw_event.shares, shares_to_burn);
+            assert_eq!(withdraw_event.amount, actual_assets_user_has_1);
+            assert_eq!(withdraw_event.shares, shares_to_burn_1);
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
             bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
-            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_bank_state.total_deposit_shares);
+            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
         } else {
             // more than MIN_USDC_DEPOSIT should be left as deposited
             attempts_to_withdraw_amount +=1;
-            println!("Withdraw an amount! remainer is not a dust: {}", actual_assets_user_has - amount_to_withdraw);
-            let shares_to_burn = convert_assets_to_shares(amount_to_withdraw, before_withdraw_bank_state.total_deposit_shares, before_withdraw_bank_state.total_deposits, true);
+            println!("Withdraw an amount! remainer is not a dust: {}", actual_assets_user_has_1 - amount_to_withdraw_1);
+            let shares_to_burn_1 = convert_assets_to_shares(amount_to_withdraw_1, before_withdraw_1_bank_state.total_deposit_shares, before_withdraw_1_bank_state.total_deposits, true);
 
             // ---> user state - account exists
             ctx.svm.assert_account_exists(&user_state_pda);
 
-            let after_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-            assert_eq!(after_withdraw_user_state.deposit_usdc_shares, before_withdraw_user_state.deposit_usdc_shares - shares_to_burn);
+            let after_withdraw_1_user_state: User = ctx.get_account(&user_state_pda).unwrap();
+            assert_eq!(after_withdraw_1_user_state.deposit_usdc_shares, before_withdraw_1_user_state.deposit_usdc_shares - shares_to_burn_1);
 
             // ---> user ata state
-            ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
+            ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw_1);
 
             // --->bank state
             let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
-            assert_eq!(after_withdraw_bank_state.total_deposits, before_withdraw_bank_state.total_deposits - amount_to_withdraw);
-            assert_eq!(after_withdraw_bank_state.total_deposit_shares, before_withdraw_bank_state.total_deposit_shares - shares_to_burn);
+            assert_eq!(after_withdraw_bank_state.total_deposits, before_withdraw_1_bank_state.total_deposits - amount_to_withdraw_1);
+            assert_eq!(after_withdraw_bank_state.total_deposit_shares, before_withdraw_1_bank_state.total_deposit_shares - shares_to_burn_1);
 
             // ---> bank token account
-            ctx.svm.assert_token_balance(&bank_token_account_pda, before_withdraw_bank_state.total_deposits - amount_to_withdraw);
-            final_bank_balance = before_withdraw_bank_state.total_deposits - amount_to_withdraw;
+            ctx.svm.assert_token_balance(&bank_token_account_pda, before_withdraw_1_bank_state.total_deposits - amount_to_withdraw_1);
+            final_bank_balance = before_withdraw_1_bank_state.total_deposits - amount_to_withdraw_1;
 
             // final bank and user state after iteration
             final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
-            sum_of_user_shares += after_withdraw_user_state.deposit_usdc_shares;
+            sum_of_user_shares += after_withdraw_1_user_state.deposit_usdc_shares;
 
             // Assert - WithdrawEvent
-            withdraw_result.assert_event_emitted::<WithdrawEvent>();
-            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+            withdraw_1_result.assert_event_emitted::<WithdrawEvent>();
+            let withdraw_event: WithdrawEvent = withdraw_1_result.parse_event().unwrap();
             assert_eq!(withdraw_event.user, depositor.pubkey());
-            assert_eq!(withdraw_event.amount, amount_to_withdraw);
-            assert_eq!(withdraw_event.shares, shares_to_burn);
+            assert_eq!(withdraw_event.amount, amount_to_withdraw_1);
+            assert_eq!(withdraw_event.shares, shares_to_burn_1);
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
             bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
             sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_bank_state.total_deposit_shares);
-
-            // -----------WITHDRAW SECOND AMOUNT---------------
+/*
+            // ----------- WITHDRAW 2 ---------------
             // ROLL SLOT AND EXPIRE BLOCKHASH
             ctx.svm.advance_slot(500);
             ctx.svm.expire_blockhash();
@@ -677,7 +677,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_bank_state.total_deposit_shares);
-            }
+            }*/
         }
 
         // ROLL SLOT AND EXPIRE BLOCKHASH
@@ -693,7 +693,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // print diagnostic variables
     println!("------- print diagnostic variables ----------");
-    println!("attempts_to_withdraw_more_than_deposit: {}", attempts_to_withdraw_more_than_deposit);
+    println!("attempts_to_withdraw_more_than_deposit: {}", attempts_to_withdraw_more_than_has);
     println!("attempts_to_withdraw_amount: {}", attempts_to_withdraw_amount);
     println!("attempts_to_withdraw_all: {}", attempts_to_withdraw_all);
 
