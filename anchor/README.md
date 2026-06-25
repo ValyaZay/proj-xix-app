@@ -12,7 +12,7 @@ Make it simple and correct, testable, deployable, frontend-integratable.
 ### 2. Implemented Features
 1. &#x2705; Initialize bank. 
 2. &#x2705; Initialize user. 
-3. Close user.
+3. &#x2705; Close user.
 4. &#x2705; Deposit USDC. 
 5. &#x2705; Issue shares. There is no SPL token representation for shares, they are tracked internally per user and globally per bank. 
 6. &#x2705; Withdraw USDC proportional to user shares / total shares (no external yield source in Step 1).
@@ -33,11 +33,11 @@ Make it simple and correct, testable, deployable, frontend-integratable.
    - &#x2705; double withdraw attempt;
    - rounding edge cases;
    - zero deposit / zero share cases;
-   - repeated deposit -> withdraw cycles.
+   - &#x2705; repeated deposit -> withdraw cycles.
 3. Stateful fuzzing - scenarios:
    1. &#x2705; init_bank -> init_user -> for _ 0..100 { deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash } 
 
-   2. init_bank -> for _ 0..100 { init_user -> 
+   2. &#x2705; init_bank -> for _ 0..100 { init_user -> 
                                   deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                   withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                 }
@@ -47,15 +47,7 @@ Make it simple and correct, testable, deployable, frontend-integratable.
                                   withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                   withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                 }
-   4. init_bank -> for _ 0..100 { 
-                                  init_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                  deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                  withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                  withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                  close_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                }
-   5. init_bank -> for _ 0..100 { 
-                                  randomly choose actions among:
+   4. init_bank -> for _ 0..100 { randomly choose actions among:
                                       init_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                       deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
                                       withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
