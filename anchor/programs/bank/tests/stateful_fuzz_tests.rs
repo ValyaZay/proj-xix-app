@@ -169,9 +169,8 @@ fn deposit_withdraw_should_update_state() {
 
     let mut final_bank_total_deposits = 0;
     let mut final_bank_total_shares= 0;
-    let mut final_user_shares= 0;
     let mut final_bank_balance= 0;
-    let mut final_user_balance= 0;
+    let mut sum_of_user_shares = 0;
 
      // Act
     /*
@@ -270,7 +269,6 @@ fn deposit_withdraw_should_update_state() {
 
             // ---> user ata state
             ctx.svm.assert_token_balance(&user_ata, actual_assets_user_has);
-            final_user_balance = actual_assets_user_has;
 
             // --->bank state
             let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -284,7 +282,6 @@ fn deposit_withdraw_should_update_state() {
             // final bank and user state after iteration
             final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
-            final_user_shares = 0;
 
             // Assert - WithdrawEvent
             withdraw_result.assert_event_emitted::<WithdrawEvent>();
@@ -292,6 +289,12 @@ fn deposit_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, actual_assets_user_has);
             assert_eq!(withdraw_event.shares, shares_to_burn);
+
+            // invariants check
+            let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+            bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
+
+            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_bank_state.total_deposit_shares);
         } else {
             // more than MIN_USDC_DEPOSIT should be left as deposited
             attempts_to_withdraw_amount +=1;
@@ -306,7 +309,6 @@ fn deposit_withdraw_should_update_state() {
 
             // ---> user ata state
             ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
-            final_user_balance = amount_to_withdraw;
 
             // --->bank state
             let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -320,7 +322,7 @@ fn deposit_withdraw_should_update_state() {
             // final bank and user state after iteration
             final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
-            final_user_shares = after_withdraw_user_state.deposit_usdc_shares;
+            sum_of_user_shares += after_withdraw_user_state.deposit_usdc_shares;
 
             // Assert - WithdrawEvent
             withdraw_result.assert_event_emitted::<WithdrawEvent>();
@@ -328,14 +330,15 @@ fn deposit_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, amount_to_withdraw);
             assert_eq!(withdraw_event.shares, shares_to_burn);
+
+            // invariants check
+            let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+            bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
+
+            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_bank_state.total_deposit_shares);
         }
 /*
-        // Assert - WithdrawEvent
-        withdraw_result.assert_event_emitted::<WithdrawEvent>();
-        let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-        assert_eq!(withdraw_event.user, depositor.pubkey());
-        assert_eq!(withdraw_event.amount, amount_to_deposit);
-        assert_eq!(withdraw_event.shares, before_withdraw_user_state.deposit_usdc_shares);
+        
 
         // invariants check
         let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
