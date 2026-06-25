@@ -285,6 +285,13 @@ fn deposit_withdraw_should_update_state() {
             final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
             final_user_shares = 0;
+
+            // Assert - WithdrawEvent
+            withdraw_result.assert_event_emitted::<WithdrawEvent>();
+            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+            assert_eq!(withdraw_event.user, depositor.pubkey());
+            assert_eq!(withdraw_event.amount, actual_assets_user_has);
+            assert_eq!(withdraw_event.shares, shares_to_burn);
         } else {
             // more than MIN_USDC_DEPOSIT should be left as deposited
             attempts_to_withdraw_amount +=1;
@@ -314,6 +321,13 @@ fn deposit_withdraw_should_update_state() {
             final_bank_total_deposits = after_withdraw_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
             final_user_shares = after_withdraw_user_state.deposit_usdc_shares;
+
+            // Assert - WithdrawEvent
+            withdraw_result.assert_event_emitted::<WithdrawEvent>();
+            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+            assert_eq!(withdraw_event.user, depositor.pubkey());
+            assert_eq!(withdraw_event.amount, amount_to_withdraw);
+            assert_eq!(withdraw_event.shares, shares_to_burn);
         }
 /*
         // Assert - WithdrawEvent
