@@ -52,3 +52,6 @@ test-ledger/
 
 # agents are ignored
 /.agents
+
+# surfpool
+/anchor/.surfpool
