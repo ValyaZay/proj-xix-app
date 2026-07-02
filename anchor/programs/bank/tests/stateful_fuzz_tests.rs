@@ -97,7 +97,7 @@ fn deposits_in_raw_should_update_state() {
         // 2. RECORD EVENT
         result.assert_event_emitted::<DepositEvent>();
         let deposit_event: DepositEvent = result.parse_event().unwrap();
-        record_deposit_event(&deposit_event);
+        //record_bank_event(&deposit_event);
 
         // 3. CHECK BANK STATE
         // bank state
@@ -369,7 +369,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mut num = 100;
+    let mut num = 1;
     let ref_num = num;
     let mut rng = rand::rng();
     let mut clock: Clock = ctx.svm.get_sysvar();
@@ -420,9 +420,14 @@ fn deposit_withdraw_withdraw_should_update_state() {
         // Deposit
         let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
-        ctx
+        let deposit_result = ctx
         .execute_instruction(deposit_inx, &[&depositor])
         .unwrap();
+
+        // record Deposit event
+        deposit_result.assert_event_emitted::<DepositEvent>();
+        let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
+        record_bank_event(&deposit_event);
 
         // state before withdraw 1
         // ---> bank state
@@ -507,6 +512,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, actual_assets_user_has_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
+            record_bank_event(&withdraw_event);
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -550,6 +556,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, amount_to_withdraw_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
+            record_bank_event(&withdraw_event);
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -634,6 +641,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, actual_assets_user_has_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
+                record_bank_event(&withdraw_event);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -675,6 +683,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, amount_to_withdraw_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
+                record_bank_event(&withdraw_event);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();

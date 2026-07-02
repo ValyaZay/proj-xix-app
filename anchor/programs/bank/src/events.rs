@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use serde::Serialize;
 
 #[event]
+#[derive(Debug)]
 pub struct DepositEvent {
     pub user: Pubkey,
     pub amount: u64,
@@ -10,28 +11,67 @@ pub struct DepositEvent {
 }
 
 #[event]
+#[derive(Debug)]
 pub struct WithdrawEvent {
     pub user: Pubkey,
     pub amount: u64,
     pub shares: u64,
-    pub timestamp: i64,
+    //pub timestamp: i64,
 }
 
-#[derive(Serialize)]
-pub struct DepositEventJson {
-    pub user: String,
-    pub amount: u64,
-    pub shares: u64,
-    pub timestamp: i64,
-}
-
-impl From<&DepositEvent> for DepositEventJson {
+impl From<&DepositEvent> for EventJsonModel {
     fn from(value: &DepositEvent) -> Self {
-        DepositEventJson { 
-            user: value.user.to_string(), 
-            amount: value.amount,
-            shares: value.shares, 
+        let data = borsh::to_vec(&value).unwrap();
+        EventJsonModel { 
+            step: 0,
+            seed: 0,
+            event_type: String::from("deposit"),
+            tx_id: String::from(""),
             timestamp: value.timestamp,
+            user: value.user.to_string(), 
+            data: data,
         }
+    }
+}
+
+impl From<&WithdrawEvent> for EventJsonModel {
+    fn from(value: &WithdrawEvent) -> Self {
+        let data = borsh::to_vec(&value).unwrap();
+        EventJsonModel { 
+            step: 0,
+            seed: 0,
+            event_type: String::from("withdraw"),
+            tx_id: String::from(""),
+            timestamp: 0,//value.timestamp,
+            user: value.user.to_string(), 
+            data: data,
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct EventJsonModel {
+    pub step: u64,
+    pub seed: u64,
+    pub event_type: String, // make it an enum?
+    pub tx_id: String,
+    pub timestamp: i64,
+    pub user: String,
+    pub data: Vec<u8>,
+}
+
+pub trait BankEvent {
+    fn to_json_model(&self) -> EventJsonModel;
+}
+
+impl BankEvent for DepositEvent {
+    fn to_json_model(&self) -> EventJsonModel {
+        self.into()
+    }
+}
+
+impl BankEvent for WithdrawEvent {
+    fn to_json_model(&self) -> EventJsonModel {
+        self.into()
     }
 }
