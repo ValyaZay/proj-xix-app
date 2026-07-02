@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[event]
 #[derive(Debug)]
@@ -49,7 +49,7 @@ impl From<&WithdrawEvent> for EventJsonModel {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EventJsonModel {
     pub step: u8,
     pub seed: u64, // for randomized test
@@ -76,7 +76,7 @@ impl BankEvent for WithdrawEvent {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum EventType {
     Deposit,
     Withdraw,
