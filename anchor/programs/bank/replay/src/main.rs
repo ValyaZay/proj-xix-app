@@ -12,10 +12,10 @@ fn main() {
         total_deposits: 0,
         total_deposit_shares: 0
     };
-    replay_events_from_source(&mut bank);
+    state_replay_events_from_source(&mut bank);
 }
 
-fn replay_events_from_source(bank: &mut ReplayBank) {
+fn state_replay_events_from_source(bank: &mut ReplayBank) {
     //println!("Replay events for user {}...", user); //add a user to params
     let file = File::open("programs/bank/bank_events_stream.jsonl").unwrap();
     let reader = BufReader::new(file);
@@ -24,7 +24,7 @@ fn replay_events_from_source(bank: &mut ReplayBank) {
         let event_json_model: EventJsonModel = serde_json::from_str(&line).unwrap();
         
         
-        // here replay for one user only and print intermediate result
+        // here replay for one user or all and print intermediate result
         match event_json_model.event_type {
             EventType::Deposit => {
                 println!("Replaying step {}...", event_json_model.step);
@@ -56,8 +56,6 @@ fn replay_events_from_source(bank: &mut ReplayBank) {
             },
         }
     }
-
-    // 
 }
 
 #[derive(Debug)]

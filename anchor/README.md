@@ -34,24 +34,30 @@ Make it simple and correct, testable, deployable, frontend-integratable.
    - zero deposit / zero share cases;
    - &#x2705; repeated deposit -> withdraw cycles.
 3. Stateful fuzzing - scenarios:
-   1. &#x2705; init_bank -> init_user -> for _ 0..100 { deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash } 
+   1. &#x2705; init_bank -> init_user -> for _ 0..100 { deposit -> check bank and user state -> check invariants -> roll slot and blockhash } 
 
    2. &#x2705; init_bank -> for _ 0..100 { init_user -> 
-                                            deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                            withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                            deposit -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                            withdraw -> check bank and user state -> check invariants -> roll slot and blockhash;
                                           }
    
    3. &#x2705; init_bank -> for _ 0..100 { init_user ->
-                                            deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                            withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                            withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                            deposit -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                            withdraw -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                            withdraw -> check bank and user state -> check invariants -> roll slot and blockhash;
                                           }
    4. init_bank -> for _ 0..100 { randomly choose actions among:
-                                      init_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                      deposit -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                      withdraw -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
-                                      close_user -> record event -> check bank and user state -> check invariants -> roll slot and blockhash;
+                                      init_user -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
+                                      random user (among inited) deposits -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
+                                      random user (among inited) withdraws -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                 }
+4. Replay events from the recorded events and compare the bank and users state:
+   1. &#x2705;  state replay events for statefull fuzz scenario 3;
+   2. logic replay events for statefull fuzz scenario 3;
+   3. state replay events for statefull fuzz scenario 4;
+   4. logic replay events for statefull fuzz scenario 4;
+
+**!!! The jsonl files that expose a bug are saved in replay/fixtures directory for further investigation and logic replay**
 
 ### 4. &#x2757; POSTPONED &#x2757; Integrate to frontend
 1. Generate TypeScript client with Codama.
@@ -71,7 +77,22 @@ It processes transaction results after execution and:
 1. parses a particular event,
 3. serializes it,
 4. appends them to a JSONL file.
+   
 **This simulates a simplified blockchain indexer for local development and UI testing purposes**
+Every emitted event is recorded, followed by a BankSnapshot and a UserSnapshot events recorded for the debugging purpose during the events replay campaign, e.g.:
+```
+DepositEvent
+BankSnapshot
+
+DepositEvent
+BankSnapshot
+
+WithdrawEvent
+BankSnapshot
+
+CloseUserEvent
+BankSnapshot
+```
 
 
 &#x1F331; &#x1F331; &#x1F331; &#x1F331; &#x1F331;
