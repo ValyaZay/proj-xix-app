@@ -16,7 +16,7 @@ pub struct WithdrawEvent {
     pub user: Pubkey,
     pub amount: u64,
     pub shares: u64,
-    //pub timestamp: i64,
+    pub timestamp: i64,
 }
 
 impl From<&DepositEvent> for EventJsonModel {
@@ -25,7 +25,7 @@ impl From<&DepositEvent> for EventJsonModel {
         EventJsonModel { 
             step: 0,
             seed: 0,
-            event_type: String::from("deposit"),
+            event_type: EventType::Deposit,
             tx_id: String::from(""),
             timestamp: value.timestamp,
             user: value.user.to_string(), 
@@ -40,9 +40,9 @@ impl From<&WithdrawEvent> for EventJsonModel {
         EventJsonModel { 
             step: 0,
             seed: 0,
-            event_type: String::from("withdraw"),
+            event_type: EventType::Withdraw,
             tx_id: String::from(""),
-            timestamp: 0,//value.timestamp,
+            timestamp: value.timestamp,
             user: value.user.to_string(), 
             data: data,
         }
@@ -52,8 +52,8 @@ impl From<&WithdrawEvent> for EventJsonModel {
 #[derive(Serialize, Debug)]
 pub struct EventJsonModel {
     pub step: u64,
-    pub seed: u64,
-    pub event_type: String, // make it an enum?
+    pub seed: u64, // for randomized test
+    pub event_type: EventType,
     pub tx_id: String,
     pub timestamp: i64,
     pub user: String,
@@ -65,13 +65,19 @@ pub trait BankEvent {
 }
 
 impl BankEvent for DepositEvent {
-    fn to_json_model(&self) -> EventJsonModel {
+    fn to_json_model(&self) -> EventJsonModel { //pass step here
         self.into()
     }
 }
 
 impl BankEvent for WithdrawEvent {
-    fn to_json_model(&self) -> EventJsonModel {
+    fn to_json_model(&self) -> EventJsonModel { //pass step here
         self.into()
     }
+}
+
+#[derive(Serialize, Debug)]
+pub enum EventType {
+    Deposit,
+    Withdraw,
 }

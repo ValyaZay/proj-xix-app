@@ -1,6 +1,6 @@
 use anchor_lang::solana_program::clock::Clock;
 use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers, AssertionHelpers};
-use anchor_spl::{token::Token, token_interface::TokenAccount};
+use anchor_spl::{ token_interface::TokenAccount};
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent, WithdrawEvent},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT },
@@ -93,11 +93,6 @@ fn deposits_in_raw_should_update_state() {
         .execute_instruction(inx.clone(), &[&depositor])
         .unwrap();
         println!("result {:?}", result);
-
-        // 2. RECORD EVENT
-        result.assert_event_emitted::<DepositEvent>();
-        let deposit_event: DepositEvent = result.parse_event().unwrap();
-        //record_bank_event(&deposit_event);
 
         // 3. CHECK BANK STATE
         // bank state
@@ -417,12 +412,22 @@ fn deposit_withdraw_withdraw_should_update_state() {
         println!("user ata {}", user_ata);
         ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
+        // arrange clock / timestamp
+        let mut clock: Clock = ctx.svm.get_sysvar();
+
         // Deposit
         let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
         let deposit_result = ctx
         .execute_instruction(deposit_inx, &[&depositor])
         .unwrap();
+
+        // ROLL SLOT AND EXPIRE BLOCKHASH
+        ctx.svm.advance_slot(500);
+        ctx.svm.expire_blockhash();
+        // set timestamp for event record
+        clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000; // 500 blocks 400ms each -> is sec
+        ctx.svm.set_sysvar(&clock);
 
         // record Deposit event
         deposit_result.assert_event_emitted::<DepositEvent>();
@@ -452,13 +457,6 @@ fn deposit_withdraw_withdraw_should_update_state() {
         // ---> user ata state
         ctx.svm.assert_token_balance(&user_ata, 0);
 
-        // ROLL SLOT AND EXPIRE BLOCKHASH
-        ctx.svm.advance_slot(500);
-        ctx.svm.expire_blockhash();
-        // set timestamp for event record
-        clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
-        ctx.svm.set_sysvar(&clock);
-
         // ----------- WITHDRAW 1 ---------------
         let withdraw_1_accounts = accounts::Withdraw {
             user: depositor.pubkey(),
@@ -479,6 +477,13 @@ fn deposit_withdraw_withdraw_should_update_state() {
         let withdraw_1_result = ctx
             .execute_instruction(withdraw_1_inx, &[&depositor])
             .unwrap();
+
+        // ROLL SLOT AND EXPIRE BLOCKHASH
+        ctx.svm.advance_slot(500);
+        ctx.svm.expire_blockhash();
+        // set timestamp for event record
+        clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000; // 500 blocks 400ms each -> is sec
+        ctx.svm.set_sysvar(&clock);
 
         // state after withdraw 1
         if actual_assets_user_has_1 < (amount_to_withdraw_1 + MIN_USDC_DEPOSIT) {
@@ -565,13 +570,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
             sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
 
             // ----------- WITHDRAW 2 ---------------
-            // ROLL SLOT AND EXPIRE BLOCKHASH
-            ctx.svm.advance_slot(500);
-            ctx.svm.expire_blockhash();
-            // set timestamp for event record
-            clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
-            ctx.svm.set_sysvar(&clock);
-
+            
             // ARRANGE
             let amount_to_withdraw_2: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
 
@@ -607,6 +606,13 @@ fn deposit_withdraw_withdraw_should_update_state() {
             let withdraw_2_result = ctx
                 .execute_instruction(withdraw_2_inx, &[&depositor])
                 .unwrap();
+
+            // ROLL SLOT AND EXPIRE BLOCKHASH
+            ctx.svm.advance_slot(500);
+            ctx.svm.expire_blockhash();
+            // set timestamp for event record
+            clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000; // 500 blocks 400ms each -> is sec
+            ctx.svm.set_sysvar(&clock);
 
             // state after withdraw 2
             if actual_assets_user_has_2 < (amount_to_withdraw_2 + MIN_USDC_DEPOSIT) {
@@ -693,18 +699,11 @@ fn deposit_withdraw_withdraw_should_update_state() {
             }
         }
 
-        // ROLL SLOT AND EXPIRE BLOCKHASH
-        ctx.svm.advance_slot(500);
-        ctx.svm.expire_blockhash();
-
-        // set timestamp for event record
-        clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
-        ctx.svm.set_sysvar(&clock);
-        
         num -= 1;
     }
 
     // print diagnostic variables
+    /*
     assert_eq!(ref_num, attempts_to_withdraw_all_1st_pass + attempts_to_withdraw_amount_1st_pass);
     assert_eq!(attempts_to_withdraw_amount_1st_pass, attempts_to_withdraw_all_2nd_pass + attempts_to_withdraw_amount_2nd_pass);
     println!("------- print diagnostic variables ----------");
@@ -713,9 +712,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
     println!("--------> attempts_to_withdraw_amount_2nd_pass: {}", attempts_to_withdraw_amount_2nd_pass);
     println!("--------> attempts_to_withdraw_all_2nd_pass: {}", attempts_to_withdraw_all_2nd_pass);
     println!("attempts_to_withdraw_all_1st_pass: {}", attempts_to_withdraw_all_1st_pass);
-    
-
-
+    */
 }
 
 

@@ -167,9 +167,6 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     // invariant check
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account_updated.amount, bank_state_updated.total_deposits);
     sum_of_users_deposit_shares_equals_bank_total_deposit_shares(user_state.deposit_usdc_shares, bank_state_updated.total_deposit_shares);
-
-    // Record event
-    record_deposit_event(&deposit_event);
 }
 
 
