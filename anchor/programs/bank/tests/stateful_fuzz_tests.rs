@@ -364,7 +364,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mut num = 1;
+    let mut num = 100;
     let ref_num = num;
     let mut rng = rand::rng();
     let mut clock: Clock = ctx.svm.get_sysvar();
@@ -393,6 +393,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                     ---> else -> withdraw randY -> user acc exists
     */
     while num != 0 {
+        let mut step: u8 = 1;
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
         let amount_to_withdraw_1: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
         
@@ -412,9 +413,6 @@ fn deposit_withdraw_withdraw_should_update_state() {
         println!("user ata {}", user_ata);
         ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
-        // arrange clock / timestamp
-        let mut clock: Clock = ctx.svm.get_sysvar();
-
         // Deposit
         let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
@@ -432,7 +430,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
         // record Deposit event
         deposit_result.assert_event_emitted::<DepositEvent>();
         let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
-        record_bank_event(&deposit_event);
+        record_bank_event(&deposit_event, step);
+
+        // roll step
+        step += 1;
 
         // state before withdraw 1
         // ---> bank state
@@ -517,7 +518,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, actual_assets_user_has_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
-            record_bank_event(&withdraw_event);
+            record_bank_event(&withdraw_event, step);
+
+            // roll step
+            step += 1;
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -561,7 +565,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, amount_to_withdraw_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
-            record_bank_event(&withdraw_event);
+            record_bank_event(&withdraw_event, step);
+
+            // roll step
+            step += 1;
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -647,7 +654,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, actual_assets_user_has_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
-                record_bank_event(&withdraw_event);
+                record_bank_event(&withdraw_event, step);
+
+                // roll step
+                step += 1;
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -689,7 +699,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, amount_to_withdraw_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
-                record_bank_event(&withdraw_event);
+                record_bank_event(&withdraw_event, step);
+
+                // roll step
+                step += 1;
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();

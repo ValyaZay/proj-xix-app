@@ -51,7 +51,7 @@ impl From<&WithdrawEvent> for EventJsonModel {
 
 #[derive(Serialize, Debug)]
 pub struct EventJsonModel {
-    pub step: u64,
+    pub step: u8,
     pub seed: u64, // for randomized test
     pub event_type: EventType,
     pub tx_id: String,
