@@ -2648,6 +2648,7 @@ name = "replay"
 version = "0.1.0"
 dependencies = [
  "bank",
+ "borsh 1.7.0",
  "serde",
  "serde_json",
 ]

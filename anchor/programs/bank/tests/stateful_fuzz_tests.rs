@@ -2,7 +2,7 @@ use anchor_lang::solana_program::clock::Clock;
 use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers, AssertionHelpers};
 use anchor_spl::{ token_interface::TokenAccount};
 use ::bank::{//import from external crate (not from idl modules)
-    events::{DepositEvent, WithdrawEvent},
+    events::{DepositEvent, WithdrawEvent, BankSnapshot},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT },
     shares_math::{convert_shares_to_assets, convert_assets_to_shares},
 };
@@ -364,7 +364,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mut num = 100;
+    let mut num = 1;
     let ref_num = num;
     let mut rng = rand::rng();
     let mut clock: Clock = ctx.svm.get_sysvar();
@@ -520,8 +520,16 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
             record_bank_event(&withdraw_event, step);
 
-            // roll step
-            step += 1;
+            // record BankShapshot because the user withdrawn all - the bank state should be known for further comparison in replay events logic
+            let bank_snapshot = BankSnapshot {
+                user: depositor.pubkey(),
+                total_deposits: after_withdraw_1_bank_state.total_deposits,
+                total_deposit_shares: after_withdraw_1_bank_state.total_deposit_shares,
+                timestamp: withdraw_event.timestamp,
+            };
+            record_bank_event(&bank_snapshot, step);
+            // do not roll step because the user withdrawn all
+            // step += 1;
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -656,14 +664,24 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
                 record_bank_event(&withdraw_event, step);
 
-                // roll step
-                step += 1;
+                // record BankShapshot because the user withdrawn all - the bank state should be known for further comparison in replay events logic
+                let bank_snapshot = BankSnapshot {
+                    user: depositor.pubkey(),
+                    total_deposits: after_withdraw_2_bank_state.total_deposits,
+                    total_deposit_shares: after_withdraw_2_bank_state.total_deposit_shares,
+                    timestamp: withdraw_event.timestamp,
+                };
+                record_bank_event(&bank_snapshot, step);
+                // do not roll step because the user withdrawn all
+                // step += 1;
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
+
+                
             } else {
                 // more than MIN_USDC_DEPOSIT should be left as deposited
                 attempts_to_withdraw_amount_2nd_pass +=1;

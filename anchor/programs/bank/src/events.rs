@@ -49,6 +49,21 @@ impl From<&WithdrawEvent> for EventJsonModel {
     }
 }
 
+impl From<&BankSnapshot> for EventJsonModel {
+    fn from(value: &BankSnapshot) -> Self {
+        let data = borsh::to_vec(&value).unwrap();
+        EventJsonModel { 
+            step: 0,
+            seed: 0,
+            event_type: EventType::BankSnapshot,
+            tx_id: String::from(""),
+            timestamp: value.timestamp,
+            user: value.user.to_string(), 
+            data: data,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EventJsonModel {
     pub step: u8,
@@ -76,8 +91,25 @@ impl BankEvent for WithdrawEvent {
     }
 }
 
+impl BankEvent for BankSnapshot {
+    fn to_json_model(&self) -> EventJsonModel { //pass step here
+        self.into()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum EventType {
     Deposit,
     Withdraw,
+    BankSnapshot
+}
+
+
+// shapshots
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct BankSnapshot {
+    pub user: Pubkey,
+    pub total_deposits: u64,
+    pub total_deposit_shares: u64,
+    pub timestamp: i64,
 }
