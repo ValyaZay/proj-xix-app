@@ -8,6 +8,8 @@ use ::bank::{//import from external crate (not from idl modules)
 };
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use rand::RngExt;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 mod utils;
 use utils::*;
@@ -377,15 +379,14 @@ fn deposit_withdraw_withdraw_should_update_state() {
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    println!("Bank address {}", bank_pda);
     let bank_token_account_pda = get_bank_token_account_pda(mint);
-    println!("Bank token acc {}", bank_token_account_pda);
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     let mut final_bank_total_deposits = 0;
     let mut final_bank_total_shares= 0;
     let mut final_bank_balance= 0;
-    let mut sum_of_user_shares = 0;
+    //let mut sum_of_user_shares = 0;
 
      // Act
     /*
@@ -407,53 +408,48 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
         // Deposit
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-        let deposit_result = deposit(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+        let deposit_result = process_deposit_and_assert_states(
+            &mut ctx, 
+            &bank_authority, 
+            &user_state_pda, //remove
+            &depositor, 
+            mint, 
+            &user_ata, //remove
+            amount_to_deposit);
 
         time_travel(&mut ctx);
 
         // record Deposit event
-        deposit_result.assert_event_emitted::<DepositEvent>();
-        let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
-        record_bank_event(&deposit_event, step, &utc_now, test_name);
-
-        // record current bank state in BankSnapshot struct
-        let after_deposit_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
-        let bank_snapshot = BankSnapshot {
-            user: depositor.pubkey(),
-            total_deposits: after_deposit_bank_state.total_deposits,
-            total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
-            timestamp: deposit_event.timestamp,
-        };
-        record_bank_event(&bank_snapshot, step, &utc_now, test_name);
+        record_deposit_event_and_snapshot(&ctx, &deposit_result, &bank_pda, step, &utc_now, test_name);
 
         // roll step
         step += 1;
 
         // state before withdraw 1
         // ---> bank state
-        let before_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
-        assert_eq!(before_withdraw_1_bank_state.total_deposits, final_bank_total_deposits + amount_to_deposit);
-        assert_eq!(before_withdraw_1_bank_state.total_deposit_shares, final_bank_total_shares + amount_to_deposit);
+        
 
         // ---> bank token account
-        let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-        let bank_token_balance = bank_token_account.amount;
-        ctx.svm.assert_token_balance(&bank_token_account_pda, bank_token_balance);
+       
 
-        // ---> user state
+        // ---> user state - add to process_deposit_and_assert_states
+        /*
+        
+        
+        assert_eq!(before_withdraw_1_user_state.deposit_usdc_shares, amount_to_deposit);
+
+        // ---> user ata state
+        let before_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
+        assert_eq!(before_withdraw_1_user_ata.amount, MAX_USDC_DEPOSIT - amount_to_deposit);
+*/
+        // ----------- WITHDRAW 1 ---------------
+        let before_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
         let before_withdraw_1_user_state: User = ctx.get_account(&user_state_pda).unwrap();
         let actual_assets_user_has_1 = convert_shares_to_assets(
             before_withdraw_1_user_state.deposit_usdc_shares,
             before_withdraw_1_bank_state.total_deposit_shares,
             before_withdraw_1_bank_state.total_deposits
         );
-        assert_eq!(before_withdraw_1_user_state.deposit_usdc_shares, amount_to_deposit);
-
-        // ---> user ata state
-        let before_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
-        assert_eq!(before_withdraw_1_user_ata.amount, MAX_USDC_DEPOSIT - amount_to_deposit);
-
-        // ----------- WITHDRAW 1 ---------------
         let amount_to_withdraw_1: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
 
         let withdraw_1_result = withdraw(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_withdraw_1);
@@ -467,13 +463,14 @@ fn deposit_withdraw_withdraw_should_update_state() {
             println!("----> Withdraw 1 <------- All! withdraw - actual: {}", amount_to_withdraw_1 - actual_assets_user_has_1);
             let shares_to_burn_1 = before_withdraw_1_user_state.deposit_usdc_shares;
 
-            // ---> user state - is closed
+            // ---> user state - is closed - add to withdraw
+            /*
             ctx.svm.assert_account_closed(&user_state_pda);
 
             // ---> user ata state
             let after_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
             assert_eq!(before_withdraw_1_user_ata.amount + actual_assets_user_has_1, after_withdraw_1_user_ata.amount);
-
+*/
             // --->bank state
             let after_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
             assert_eq!(after_withdraw_1_bank_state.total_deposits, before_withdraw_1_bank_state.total_deposits - actual_assets_user_has_1);
@@ -510,22 +507,23 @@ fn deposit_withdraw_withdraw_should_update_state() {
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
             bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
-            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
+            //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
         } else {
             // more than MIN_USDC_DEPOSIT should be left as deposited
             attempts_to_withdraw_amount_1st_pass +=1;
             println!("-----> Withdraw 1 <------ an amount! remainder is not a dust: {}", actual_assets_user_has_1 - amount_to_withdraw_1);
             let shares_to_burn_1 = convert_assets_to_shares(amount_to_withdraw_1, before_withdraw_1_bank_state.total_deposit_shares, before_withdraw_1_bank_state.total_deposits, true);
 
-            // ---> user state - account exists
-            ctx.svm.assert_account_exists(&user_state_pda);
+            // ---> user state - account exists - add to withdraw
+            
+            //ctx.svm.assert_account_exists(&user_state_pda);
 
             let after_withdraw_1_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-            assert_eq!(after_withdraw_1_user_state.deposit_usdc_shares, before_withdraw_1_user_state.deposit_usdc_shares - shares_to_burn_1);
+           // assert_eq!(after_withdraw_1_user_state.deposit_usdc_shares, before_withdraw_1_user_state.deposit_usdc_shares - shares_to_burn_1);
 
             // ---> user ata state
             let after_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
-            assert_eq!(before_withdraw_1_user_ata.amount + amount_to_withdraw_1, after_withdraw_1_user_ata.amount);
+           // assert_eq!(before_withdraw_1_user_ata.amount + amount_to_withdraw_1, after_withdraw_1_user_ata.amount);
 
             // --->bank state
             let after_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -539,7 +537,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
             // final bank and user state after iteration
             final_bank_total_deposits = after_withdraw_1_bank_state.total_deposits;
             final_bank_total_shares = after_withdraw_1_bank_state.total_deposit_shares;
-            sum_of_user_shares += after_withdraw_1_user_state.deposit_usdc_shares;
+            //sum_of_user_shares += after_withdraw_1_user_state.deposit_usdc_shares;
 
             // Assert - WithdrawEvent
             withdraw_1_result.assert_event_emitted::<WithdrawEvent>();
@@ -565,7 +563,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
             bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
-            sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
+            //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
 
             // ----------- WITHDRAW 2 ---------------
             // ARRANGE
@@ -608,7 +606,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 // final bank and user state after iteration
                 final_bank_total_deposits = after_withdraw_2_bank_state.total_deposits;
                 final_bank_total_shares = after_withdraw_2_bank_state.total_deposit_shares;
-                sum_of_user_shares -= shares_to_burn_2;
+                //sum_of_user_shares -= shares_to_burn_2;
 
                 // Assert - WithdrawEvent
                 withdraw_2_result.assert_event_emitted::<WithdrawEvent>();
@@ -633,7 +631,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
-                sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
+                //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
             } else {
                 // more than MIN_USDC_DEPOSIT should be left as deposited
                 attempts_to_withdraw_amount_2nd_pass +=1;
@@ -662,7 +660,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 // final bank and user state after iteration
                 final_bank_total_deposits = after_withdraw_2_bank_state.total_deposits;
                 final_bank_total_shares = after_withdraw_2_bank_state.total_deposit_shares;
-                sum_of_user_shares -= shares_to_burn_2;
+                //sum_of_user_shares -= shares_to_burn_2;
 
                 // Assert - WithdrawEvent
                 withdraw_2_result.assert_event_emitted::<WithdrawEvent>();
@@ -688,7 +686,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
-                sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
+                //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
             }
         }
 
@@ -708,6 +706,80 @@ fn deposit_withdraw_withdraw_should_update_state() {
     */
 }
 
+#[test]
+fn randomized_test() {
+    let utc_now = Utc::now().to_string();
+    let test_name = "deposit_withdraw_withdraw_should_update_state";
+
+    // Arrange
+    let mut ctx = init_anchor_ctx();
+    
+    // Arrange mint
+    let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
+
+    // Arrange bank
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
+
+    //choose random inx
+    let seed: u64 = 12345;
+    let mut rng = StdRng::seed_from_u64(seed);
+    for _ in 0..=10 {
+        let instruction = BankInstruction::random(&mut rng);
+
+        match instruction {
+            BankInstruction::InitUser => {
+                println!("Is not implemented yet");
+            },
+            BankInstruction::Deposit => {
+                println!("init user and deposit an amount");
+                // add user to an array to choose it for other inxs randomly
+                // assert states after inx
+            },
+            BankInstruction::Withdraw => {
+                println!("withdraw an amount for a user");
+                // assert states after inx
+            },
+            BankInstruction::Swap => {
+                println!("swap an amount for a user - not implemented yet");
+            }
+        }
+    }    
+}
+
+pub enum BankInstruction {
+    InitUser,
+    Deposit,
+    Withdraw,
+    Swap,
+}
+
+impl BankInstruction {
+    fn random(rng: &mut StdRng) -> Self {
+        match rng.random_range(0..4) {
+            0 => {
+                println!("InitUser");
+                Self::InitUser
+            },
+            1 => {
+                println!("Deposit");
+                Self::Deposit
+            },
+            2 => {
+                println!("Withdraw");
+                Self::Withdraw
+            },
+            3 => {
+                println!("Swap");
+                Self::Swap
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
 fn time_travel(ctx: &mut AnchorContext) {
     let mut clock: Clock = ctx.svm.get_sysvar();
     let mut rng = rand::rng();
@@ -720,5 +792,17 @@ fn time_travel(ctx: &mut AnchorContext) {
     clock.unix_timestamp += delta;
     ctx.svm.set_sysvar(&clock);
 }
+/*
+Withdraw
+Deposit
+Swap
+Swap
+Withdraw
+Withdraw
+Withdraw
+Deposit
+Withdraw
+Deposit
+Withdraw
 
-
+*/

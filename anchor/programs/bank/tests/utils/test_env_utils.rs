@@ -1,13 +1,22 @@
 use anchor_lang::{self};
 use anchor_lang::declare_program;
-use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
+use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
+use anchor_spl::{ token_interface::TokenAccount};
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
+use ::bank::{//import from external crate (not from idl modules)
+    events::{DepositEvent, WithdrawEvent, BankSnapshot},
+};
+
+use crate::utils::event_recorder::record_bank_event;
 
 declare_program!(bank);
 
+
+
 use self::bank::{
     client::{accounts, args},
+    accounts::Bank
     //events::DepositEvent, //import from idl modules
 };
 
@@ -80,23 +89,60 @@ pub fn get_user_account_pda(user: Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_USER_STATE", user.as_ref()], &self::bank::ID).0
 }
 
-pub fn deposit(
+pub fn init_bank_and_assert(
     ctx: &mut AnchorContext, 
+    mint: &Pubkey, 
+    bank_authority: &Keypair
+) {
+    // derive pdas here, not pass
+    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref(), bank_authority.pubkey().as_ref()], &self::bank::ID).0;
+
+    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0;
+
+    let ix = ctx
+        .program()
+        .accounts(accounts::InitBank {
+            authority: bank_authority.pubkey(),
+            mint: *mint,
+            bank_state: bank_pda,
+            bank_token_account: bank_token_account_pda,
+            token_program: anchor_spl::token::ID,
+            system_program: anchor_lang::system_program::ID,
+        })
+        .args(args::InitBank {})
+        .instruction()
+        .unwrap();
+
+    let result = ctx.execute_instruction(ix, &[&bank_authority]).unwrap();
+    result.assert_success();
+    
+    ctx.svm.assert_account_exists(&bank_pda);
+    ctx.svm.assert_account_exists(&bank_token_account_pda);
+}
+
+pub fn process_deposit_and_assert_states(
+    ctx: &mut AnchorContext, 
+    bank_authority: &Keypair,
     user_state_pda: &Pubkey, 
     depositor: &Keypair, 
-    bank_pda: &Pubkey, 
-    mint: &Pubkey, 
-    bank_token_account_pda: &Pubkey, 
+    mint: Pubkey, 
     user_ata: &Pubkey, 
     amount: u64
 ) -> TransactionResult {
+    // derive pdas here, not pass
+    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+
+    let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+
     let deposit_accounts = accounts::Deposit {
         user: depositor.pubkey(),
         user_state: *user_state_pda,
-        bank_state: *bank_pda,
-        mint: *mint,
+        bank_state: bank_pda,
+        mint: mint,
         user_associated_token_account: *user_ata,
-        bank_token_account: *bank_token_account_pda,
+        bank_token_account: bank_token_account_pda,
         token_program: anchor_spl::token::ID,
         system_program: anchor_lang::system_program::ID,
         associated_token_program: anchor_spl::associated_token::ID,
@@ -109,10 +155,24 @@ pub fn deposit(
         .instruction()
         .unwrap();
 
-    ctx
+    let transaction_result = ctx
         .execute_instruction(inx, &[&depositor])
-        .unwrap()
+        .unwrap();
+
+    let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_token_account_after: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+
+    // Assert bank state
+    assert_eq!(bank_state_after.total_deposits, bank_state_before.total_deposits + amount);
+    assert_eq!(bank_state_after.total_deposit_shares, bank_state_before.total_deposit_shares + amount); //here should be calculated shares amount, not assets amount!
+    assert_eq!(bank_token_account_after.amount, bank_token_account_before.amount + amount);
+
+    // Assert user state
+
+    transaction_result
 }
+
+
 
 pub fn withdraw(
     ctx: &mut AnchorContext, 
@@ -145,4 +205,27 @@ pub fn withdraw(
     ctx
         .execute_instruction(inx, &[&depositor])
         .unwrap()
+}
+
+pub fn record_deposit_event_and_snapshot(
+    ctx: &AnchorContext, 
+    deposit_result: &TransactionResult, 
+    bank_pda: &Pubkey,
+    step: u8, 
+    utc_now: &str, 
+    test_name: &str
+) {
+    deposit_result.assert_event_emitted::<DepositEvent>();
+    let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
+    record_bank_event(&deposit_event, step, &utc_now, test_name);
+
+    // record current bank state in BankSnapshot struct
+    let after_deposit_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_snapshot = BankSnapshot {
+        user: deposit_event.user,
+        total_deposits: after_deposit_bank_state.total_deposits,
+        total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
+        timestamp: deposit_event.timestamp,
+    };
+    record_bank_event(&bank_snapshot, step, &utc_now, test_name);
 }
