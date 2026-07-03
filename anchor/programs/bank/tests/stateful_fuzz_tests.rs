@@ -396,26 +396,17 @@ fn deposit_withdraw_withdraw_should_update_state() {
     */
     while num != 0 {
         let mut step: u8 = 1;
-        let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-        let amount_to_withdraw_1: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
         
-        println!("-----------------------------");
-        println!("num: {}, amount_to_deposit: {}, amount_to_withdraw: {}", num, amount_to_deposit, amount_to_withdraw_1);
-        if amount_to_deposit < amount_to_withdraw_1 {
-            attempts_to_withdraw_more_than_has += 1;
-        }
-
         // Arrange - depositor
         let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-        println!("User address {}", depositor.pubkey());
 
         // Arrange user
         let user_state_pda = get_user_account_pda(depositor.pubkey());
         let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
-        println!("user ata {}", user_ata);
-        ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
+        ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
 
         // Deposit
+        let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
         let deposit_result = deposit(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
         time_travel(&mut ctx);
@@ -459,28 +450,13 @@ fn deposit_withdraw_withdraw_should_update_state() {
         assert_eq!(before_withdraw_1_user_state.deposit_usdc_shares, amount_to_deposit);
 
         // ---> user ata state
-        ctx.svm.assert_token_balance(&user_ata, 0);
+        let before_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
+        assert_eq!(before_withdraw_1_user_ata.amount, MAX_USDC_DEPOSIT - amount_to_deposit);
 
         // ----------- WITHDRAW 1 ---------------
-        let withdraw_1_accounts = accounts::Withdraw {
-            user: depositor.pubkey(),
-            user_state: user_state_pda,
-            bank_state: bank_pda,
-            mint: mint,
-            user_associated_token_account: user_ata,
-            bank_token_account: bank_token_account_pda,
-            token_program: anchor_spl::token::ID,
-            system_program: anchor_lang::system_program::ID,
-        };
-        let withdraw_1_inx = ctx
-            .program()
-            .accounts(withdraw_1_accounts)
-            .args(args::Withdraw {assets_amount_to_withdraw: amount_to_withdraw_1})
-            .instruction()
-            .unwrap();
-        let withdraw_1_result = ctx
-            .execute_instruction(withdraw_1_inx, &[&depositor])
-            .unwrap();
+        let amount_to_withdraw_1: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
+
+        let withdraw_1_result = withdraw(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_withdraw_1);
 
         time_travel(&mut ctx);
 
@@ -495,7 +471,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
             ctx.svm.assert_account_closed(&user_state_pda);
 
             // ---> user ata state
-            ctx.svm.assert_token_balance(&user_ata, actual_assets_user_has_1);
+            let after_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
+            assert_eq!(before_withdraw_1_user_ata.amount + actual_assets_user_has_1, after_withdraw_1_user_ata.amount);
 
             // --->bank state
             let after_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -537,7 +514,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
         } else {
             // more than MIN_USDC_DEPOSIT should be left as deposited
             attempts_to_withdraw_amount_1st_pass +=1;
-            println!("-----> Withdraw 1 <------ an amount! remainer is not a dust: {}", actual_assets_user_has_1 - amount_to_withdraw_1);
+            println!("-----> Withdraw 1 <------ an amount! remainder is not a dust: {}", actual_assets_user_has_1 - amount_to_withdraw_1);
             let shares_to_burn_1 = convert_assets_to_shares(amount_to_withdraw_1, before_withdraw_1_bank_state.total_deposit_shares, before_withdraw_1_bank_state.total_deposits, true);
 
             // ---> user state - account exists
@@ -547,9 +524,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(after_withdraw_1_user_state.deposit_usdc_shares, before_withdraw_1_user_state.deposit_usdc_shares - shares_to_burn_1);
 
             // ---> user ata state
-            ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw_1);
             let after_withdraw_1_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
-
+            assert_eq!(before_withdraw_1_user_ata.amount + amount_to_withdraw_1, after_withdraw_1_user_ata.amount);
 
             // --->bank state
             let after_withdraw_1_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -592,42 +568,17 @@ fn deposit_withdraw_withdraw_should_update_state() {
             sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
 
             // ----------- WITHDRAW 2 ---------------
-            
             // ARRANGE
-            let amount_to_withdraw_2: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
-
             let actual_assets_user_has_2 = convert_shares_to_assets(
                 after_withdraw_1_user_state.deposit_usdc_shares,
                 after_withdraw_1_bank_state.total_deposit_shares,
                 after_withdraw_1_bank_state.total_deposits
             );
-            
-            println!("-----------------------------");
-            println!("num: {}, actual_assets_user_has_2: {}, amount_to_withdraw: {}", num, actual_assets_user_has_2, amount_to_withdraw_2);
-            if actual_assets_user_has_2 < amount_to_withdraw_2 {
-                attempts_to_withdraw_more_than_has += 1;
-            }
 
             // Withdraw 2
-            let withdraw_2_accounts = accounts::Withdraw {
-                user: depositor.pubkey(),
-                user_state: user_state_pda,
-                bank_state: bank_pda,
-                mint: mint,
-                user_associated_token_account: user_ata,
-                bank_token_account: bank_token_account_pda,
-                token_program: anchor_spl::token::ID,
-                system_program: anchor_lang::system_program::ID,
-            };
-            let withdraw_2_inx = ctx
-                .program()
-                .accounts(withdraw_2_accounts)
-                .args(args::Withdraw {assets_amount_to_withdraw: amount_to_withdraw_2})
-                .instruction()
-                .unwrap();
-            let withdraw_2_result = ctx
-                .execute_instruction(withdraw_2_inx, &[&depositor])
-                .unwrap();
+            let amount_to_withdraw_2: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT);// don't limit amount to withdraw by amount to deposit - the cases what the user wants more than has should be included too!!!
+            
+            let withdraw_2_result = withdraw(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_withdraw_2);
 
             time_travel(&mut ctx);
 
@@ -642,7 +593,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 ctx.svm.assert_account_closed(&user_state_pda);
 
                 // ---> user ata state
-                ctx.svm.assert_token_balance(&user_ata, after_withdraw_1_user_ata.amount + actual_assets_user_has_2);
+                let after_withdraw_2_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
+                assert_eq!(after_withdraw_2_user_ata.amount, after_withdraw_1_user_ata.amount + actual_assets_user_has_2);
 
                 // --->bank state
                 let after_withdraw_2_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -682,8 +634,6 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
 
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_2_bank_state.total_deposit_shares);
-
-                
             } else {
                 // more than MIN_USDC_DEPOSIT should be left as deposited
                 attempts_to_withdraw_amount_2nd_pass +=1;
@@ -697,7 +647,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(after_withdraw_2_user_state.deposit_usdc_shares, after_withdraw_1_user_state.deposit_usdc_shares - shares_to_burn_2);
 
                 // ---> user ata state
-                ctx.svm.assert_token_balance(&user_ata, after_withdraw_1_user_ata.amount + amount_to_withdraw_2);
+                 let after_withdraw_2_user_ata: TokenAccount = ctx.get_account(&user_ata).unwrap();
+                assert_eq!(after_withdraw_2_user_ata.amount, after_withdraw_1_user_ata.amount + amount_to_withdraw_2);
 
                 // --->bank state
                 let after_withdraw_2_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();

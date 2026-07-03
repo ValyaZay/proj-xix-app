@@ -88,7 +88,8 @@ pub fn deposit(
     mint: &Pubkey, 
     bank_token_account_pda: &Pubkey, 
     user_ata: &Pubkey, 
-    amount: u64) -> TransactionResult {
+    amount: u64
+) -> TransactionResult {
     let deposit_accounts = accounts::Deposit {
         user: depositor.pubkey(),
         user_state: *user_state_pda,
@@ -108,6 +109,39 @@ pub fn deposit(
         .instruction()
         .unwrap();
 
+    ctx
+        .execute_instruction(inx, &[&depositor])
+        .unwrap()
+}
+
+pub fn withdraw(
+    ctx: &mut AnchorContext, 
+    user_state_pda: &Pubkey, 
+    depositor: &Keypair, 
+    bank_pda: &Pubkey, 
+    mint: &Pubkey, 
+    bank_token_account_pda: &Pubkey, 
+    user_ata: &Pubkey, 
+    amount: u64
+) -> TransactionResult {
+    let withdraw_accounts = accounts::Withdraw {
+        user: depositor.pubkey(),
+        user_state: *user_state_pda,
+        bank_state: *bank_pda,
+        mint: *mint,
+        user_associated_token_account: *user_ata,
+        bank_token_account: *bank_token_account_pda,
+        token_program: anchor_spl::token::ID,
+        system_program: anchor_lang::system_program::ID,
+    };
+
+    let inx = ctx
+            .program()
+            .accounts(withdraw_accounts)
+            .args(args::Withdraw {assets_amount_to_withdraw: amount})
+            .instruction()
+            .unwrap();
+    
     ctx
         .execute_instruction(inx, &[&depositor])
         .unwrap()
