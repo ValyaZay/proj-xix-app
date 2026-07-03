@@ -1,8 +1,6 @@
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use borsh::de::BorshDeserialize;
-
-use bank::constants::*;
 use bank::events::{BankSnapshot, DepositEvent, EventJsonModel, EventType};
 
 fn main() {
@@ -10,24 +8,18 @@ fn main() {
         total_deposits: 0,
         total_deposit_shares: 0
     };
-    state_replay_events_from_source(&mut bank, false, "7HtyBjjyoDhPC2ihjPrMPUNXz6JuT6Rb2nQ8AxF9cHD6");
+    state_replay_events_from_source(&mut bank);
 }
 
-fn state_replay_events_from_source(bank: &mut ReplayBank, replay_for_one_user: bool, user: &str) {
+fn state_replay_events_from_source(bank: &mut ReplayBank) {
     //println!("Replay events for user {}...", user); //add a user to params
-    let file = File::open("programs/bank/bank_events_stream.jsonl").unwrap();
+    let file = File::open("programs/bank/test_runs/deposit_withdraw_withdraw_should_update_state_2026-07-03 10:57:45.118108936 UTC.jsonl").unwrap();
     let reader = BufReader::new(file);
     for line in reader.lines() {
         let line = line.unwrap();
         let event_json_model: EventJsonModel = serde_json::from_str(&line).unwrap();
         
-        if replay_for_one_user == true {
-            if event_json_model.user.as_str() == user {
-                perform_match(bank, event_json_model);
-            }
-        } else {
-            perform_match(bank, event_json_model);
-        }
+        perform_match(bank, event_json_model);
     }
 }
 

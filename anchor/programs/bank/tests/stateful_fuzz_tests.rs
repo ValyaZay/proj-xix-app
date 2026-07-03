@@ -21,7 +21,7 @@ use utils::bank::{
     //events::DepositEvent, //import from idl modules
 };
 
-//TODO randomize amount to deposit, add user checks
+use chrono::{Utc};
 
 #[test]
 fn deposits_in_raw_should_update_state() {
@@ -355,6 +355,9 @@ fn deposit_withdraw_should_update_state() {
 
 #[test]
 fn deposit_withdraw_withdraw_should_update_state() {
+    let utc_now = Utc::now().to_string();
+    let test_name = "deposit_withdraw_withdraw_should_update_state";
+
     // diagnostic variables:
     let mut attempts_to_withdraw_more_than_has = 0;
     let mut attempts_to_withdraw_all_1st_pass = 0;
@@ -364,7 +367,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // Arrange
     let mut ctx = init_anchor_ctx();
-    let mut num = 1;
+    let mut num = 10;
     let ref_num = num;
     let mut rng = rand::rng();
     let mut clock: Clock = ctx.svm.get_sysvar();
@@ -430,7 +433,17 @@ fn deposit_withdraw_withdraw_should_update_state() {
         // record Deposit event
         deposit_result.assert_event_emitted::<DepositEvent>();
         let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
-        record_bank_event(&deposit_event, step);
+        record_bank_event(&deposit_event, step, &utc_now, test_name);
+
+        // record current bank state in BankSnapshot struct
+        let after_deposit_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+        let bank_snapshot = BankSnapshot {
+            user: depositor.pubkey(),
+            total_deposits: after_deposit_bank_state.total_deposits,
+            total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
+            timestamp: deposit_event.timestamp,
+        };
+        record_bank_event(&bank_snapshot, step, &utc_now, test_name);
 
         // roll step
         step += 1;
@@ -518,16 +531,16 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, actual_assets_user_has_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
-            record_bank_event(&withdraw_event, step);
+            record_bank_event(&withdraw_event, step, &utc_now, test_name);
 
-            // record BankShapshot because the user withdrawn all - the bank state should be known for further comparison in replay events logic
+            // record current bank state in BankSnapshot struct
             let bank_snapshot = BankSnapshot {
                 user: depositor.pubkey(),
                 total_deposits: after_withdraw_1_bank_state.total_deposits,
                 total_deposit_shares: after_withdraw_1_bank_state.total_deposit_shares,
                 timestamp: withdraw_event.timestamp,
             };
-            record_bank_event(&bank_snapshot, step);
+            record_bank_event(&bank_snapshot, step, &utc_now, test_name);
             // do not roll step because the user withdrawn all
             // step += 1;
 
@@ -573,7 +586,16 @@ fn deposit_withdraw_withdraw_should_update_state() {
             assert_eq!(withdraw_event.user, depositor.pubkey());
             assert_eq!(withdraw_event.amount, amount_to_withdraw_1);
             assert_eq!(withdraw_event.shares, shares_to_burn_1);
-            record_bank_event(&withdraw_event, step);
+            record_bank_event(&withdraw_event, step, &utc_now, test_name);
+
+            // record current bank state in BankSnapshot struct
+            let bank_snapshot = BankSnapshot {
+                user: depositor.pubkey(),
+                total_deposits: after_withdraw_1_bank_state.total_deposits,
+                total_deposit_shares: after_withdraw_1_bank_state.total_deposit_shares,
+                timestamp: withdraw_event.timestamp,
+            };
+            record_bank_event(&bank_snapshot, step,&utc_now, test_name);
 
             // roll step
             step += 1;
@@ -662,16 +684,16 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, actual_assets_user_has_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
-                record_bank_event(&withdraw_event, step);
+                record_bank_event(&withdraw_event, step, &utc_now, test_name);
 
-                // record BankShapshot because the user withdrawn all - the bank state should be known for further comparison in replay events logic
+                // record current bank state in BankSnapshot struct
                 let bank_snapshot = BankSnapshot {
                     user: depositor.pubkey(),
                     total_deposits: after_withdraw_2_bank_state.total_deposits,
                     total_deposit_shares: after_withdraw_2_bank_state.total_deposit_shares,
                     timestamp: withdraw_event.timestamp,
                 };
-                record_bank_event(&bank_snapshot, step);
+                record_bank_event(&bank_snapshot, step, &utc_now, test_name);
                 // do not roll step because the user withdrawn all
                 // step += 1;
 
@@ -717,7 +739,16 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_eq!(withdraw_event.user, depositor.pubkey());
                 assert_eq!(withdraw_event.amount, amount_to_withdraw_2);
                 assert_eq!(withdraw_event.shares, shares_to_burn_2);
-                record_bank_event(&withdraw_event, step);
+                record_bank_event(&withdraw_event, step, &utc_now, test_name);
+
+                // record current bank state in BankSnapshot struct
+                let bank_snapshot = BankSnapshot {
+                    user: depositor.pubkey(),
+                    total_deposits: after_withdraw_2_bank_state.total_deposits,
+                    total_deposit_shares: after_withdraw_2_bank_state.total_deposit_shares,
+                    timestamp: withdraw_event.timestamp,
+                };
+                record_bank_event(&bank_snapshot, step, &utc_now, test_name);
 
                 // roll step
                 step += 1;
