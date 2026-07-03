@@ -10,3 +10,6 @@ pub const SEED_BANK_TOKEN_ACCOUNT: &[u8] = b"SEED_BANK_TOKEN_ACCOUNT";
 // 
 pub const MIN_USDC_DEPOSIT: u64 = 10_000_000; // 10 usdc
 pub const MAX_USDC_DEPOSIT: u64 = 1_000_000_000_000; // 1_000_000 usdc
+
+// time
+pub const SECONDS_PER_WEEK: i64 = 604_800;

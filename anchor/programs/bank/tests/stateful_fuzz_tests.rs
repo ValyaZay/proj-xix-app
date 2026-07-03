@@ -1,11 +1,9 @@
-use core::time;
-
-use anchor_lang::solana_program::clock::Clock;
+use anchor_lang::solana_program::clock::{Clock};
 use anchor_litesvm::{ AccountError, AnchorContext, AssertionHelpers, EventHelpers, Signer, TestHelpers};
-use anchor_spl::{ token::close_account, token_interface::TokenAccount};
+use anchor_spl::{ token_interface::TokenAccount};
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent, WithdrawEvent, BankSnapshot},
-    constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT },
+    constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT, SECONDS_PER_WEEK },
     shares_math::{convert_shares_to_assets, convert_assets_to_shares},
 };
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
@@ -24,6 +22,8 @@ use utils::bank::{
 };
 
 use chrono::{Utc};
+
+use crate::utils::bank::error::BankError;
 
 #[test]
 fn deposits_in_raw_should_update_state() {
@@ -765,11 +765,14 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
 fn time_travel(ctx: &mut AnchorContext) {
     let mut clock: Clock = ctx.svm.get_sysvar();
-    // ROLL SLOT AND EXPIRE BLOCKHASH
-    ctx.svm.advance_slot(500);
+    let mut rng = rand::rng();
+    
+    // EXPIRE BLOCKHASH
     ctx.svm.expire_blockhash();
-    // set timestamp for event record
-    clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000; // 500 blocks 400ms each -> is sec
+    
+    // set timestamp
+    let delta: i64 = rng.random_range(1..=SECONDS_PER_WEEK);
+    clock.unix_timestamp += delta;
     ctx.svm.set_sysvar(&clock);
 }
 
