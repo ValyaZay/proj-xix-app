@@ -23,8 +23,6 @@ use utils::bank::{
 
 use chrono::{Utc};
 
-use crate::utils::bank::error::BankError;
-
 #[test]
 fn deposits_in_raw_should_update_state() {
     // Arrange
@@ -418,11 +416,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
         ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
         // Deposit
-        let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
-
-        let deposit_result = ctx
-        .execute_instruction(deposit_inx, &[&depositor])
-        .unwrap();
+        let deposit_result = deposit(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
         time_travel(&mut ctx);
 

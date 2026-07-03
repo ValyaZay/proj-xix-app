@@ -1,6 +1,6 @@
 use anchor_lang::{self};
 use anchor_lang::declare_program;
-use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, Instruction, Pubkey, Signer, TestHelpers};
+use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
@@ -78,4 +78,37 @@ pub fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
 
 pub fn get_user_account_pda(user: Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_USER_STATE", user.as_ref()], &self::bank::ID).0
+}
+
+pub fn deposit(
+    ctx: &mut AnchorContext, 
+    user_state_pda: &Pubkey, 
+    depositor: &Keypair, 
+    bank_pda: &Pubkey, 
+    mint: &Pubkey, 
+    bank_token_account_pda: &Pubkey, 
+    user_ata: &Pubkey, 
+    amount: u64) -> TransactionResult {
+    let deposit_accounts = accounts::Deposit {
+        user: depositor.pubkey(),
+        user_state: *user_state_pda,
+        bank_state: *bank_pda,
+        mint: *mint,
+        user_associated_token_account: *user_ata,
+        bank_token_account: *bank_token_account_pda,
+        token_program: anchor_spl::token::ID,
+        system_program: anchor_lang::system_program::ID,
+        associated_token_program: anchor_spl::associated_token::ID,
+    };
+
+    let inx = ctx
+        .program()
+        .accounts(deposit_accounts)
+        .args(args::Deposit { amount: amount })
+        .instruction()
+        .unwrap();
+
+    ctx
+        .execute_instruction(inx, &[&depositor])
+        .unwrap()
 }
