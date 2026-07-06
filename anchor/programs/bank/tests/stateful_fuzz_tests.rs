@@ -41,6 +41,8 @@ fn deposits_in_raw_should_update_state() {
 
     // Arrange - depositor    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+
+    init_user_and_assert(&mut ctx, &depositor);
     
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
@@ -190,6 +192,8 @@ fn deposit_withdraw_should_update_state() {
         // Arrange - depositor
         let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
         println!("User address {}", depositor.pubkey());
+        
+        init_user_and_assert(&mut ctx, &depositor);
 
         // Arrange user
         let user_state_pda = get_user_account_pda(depositor.pubkey());
@@ -388,6 +392,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
         
         // Arrange - depositor
         let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+        init_user_and_assert(&mut ctx, &depositor);
         let user_state_pda = get_user_account_pda(depositor.pubkey());
         let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
         ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
@@ -460,7 +465,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
 #[test]
 fn randomized_test() {
     let utc_now = Utc::now().to_string();
-    let test_name = "deposit_withdraw_withdraw_should_update_state";
+    let seed: u64 = 12345; 
+    let test_name = format!("seed-{seed}-randomized_test");
 
     // Arrange
     let mut ctx = init_anchor_ctx();
@@ -475,7 +481,7 @@ fn randomized_test() {
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     //choose random inx
-    let seed: u64 = 12345;
+    
     let mut amount_of_deposits = 0;
     let mut amount_of_withdraws = 0;
 
@@ -497,6 +503,8 @@ fn randomized_test() {
                 /////////
                 // Arrange - depositor
                 let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+                init_user_and_assert(&mut ctx, &depositor);
+                
                 let user_state_pda = get_user_account_pda(depositor.pubkey());
                 let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
                 ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
@@ -506,8 +514,8 @@ fn randomized_test() {
                 println!("init user and deposit an amount {}", amount_to_deposit);
                 let (deposit_result, actual_deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, &depositor, mint, &user_ata, amount_to_deposit);
 
-                // step is zero - add it to user state???
-                assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, 0, &utc_now, test_name);
+                // step is zero - add it to user state??? - no, HashMap user->step
+                assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, 0, &utc_now, &test_name);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();

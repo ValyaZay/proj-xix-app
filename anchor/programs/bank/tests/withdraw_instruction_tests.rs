@@ -31,8 +31,8 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    init_user_and_assert(&mut ctx, &depositor);
 
     // Arrange user
     let user_state_pda = get_user_account_pda(depositor.pubkey());
@@ -139,8 +139,8 @@ fn withdraw_no_dust_remains() {
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    init_user_and_assert(&mut ctx, &depositor);
 
     // Arrange user
     let user_state_pda = get_user_account_pda(depositor.pubkey());
@@ -239,8 +239,8 @@ fn withdraw_but_leave_minimum() {
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    init_user_and_assert(&mut ctx, &depositor);
 
     // Arrange user
     let user_state_pda = get_user_account_pda(depositor.pubkey());
@@ -347,8 +347,8 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    init_user_and_assert(&mut ctx, &depositor);
 
     // Arrange user
     let user_state_pda = get_user_account_pda(depositor.pubkey());
@@ -444,8 +444,8 @@ fn withdraw_all_via_two_attempts() {
     init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
 
     // Arrange - depositor
-    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+    init_user_and_assert(&mut ctx, &depositor);
 
     // Arrange user
     let user_state_pda = get_user_account_pda(depositor.pubkey());
