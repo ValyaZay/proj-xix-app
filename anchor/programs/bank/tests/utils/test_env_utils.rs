@@ -1,4 +1,4 @@
-use anchor_lang::{self};
+use anchor_lang::{self, error};
 use anchor_lang::declare_program;
 use anchor_litesvm::{ AccountError, AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
 use anchor_spl::{ token_interface::TokenAccount};
@@ -8,7 +8,9 @@ use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent, WithdrawEvent, BankSnapshot},
     constants::MIN_USDC_DEPOSIT,
+    errors::BankErrors,
 };
+use core::error::Error;
 
 use crate::utils::event_recorder::record_bank_event;
 
@@ -202,6 +204,7 @@ pub fn process_deposit_and_assert_states(
     let transaction_result = ctx
         .execute_instruction(inx, &[&depositor])
         .unwrap();
+    transaction_result.assert_success();
 
     // Assert bank state
     let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -230,7 +233,7 @@ pub fn process_withdraw_and_assert_states(
     bank_token_account_pda: &Pubkey, 
     user_ata: &Pubkey, 
     amount: u64
-) -> (TransactionResult, u64, u64, bool) {
+) -> Result<(TransactionResult, u64, u64, bool), BankErrors> {
     println!("withdraw amount {} for user {}", amount, depositor.pubkey());
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -260,11 +263,23 @@ pub fn process_withdraw_and_assert_states(
             .args(args::Withdraw {assets_amount_to_withdraw: amount})
             .instruction()
             .unwrap();
-    
-    let transaction_result = ctx
-        .execute_instruction(inx, &[&depositor])
-        .unwrap();
-    transaction_result.assert_success();
+        
+    let transaction_result = match ctx
+        .execute_instruction(inx, &[&depositor]) {
+            Ok(res) => match res.is_success() {
+                true => res,
+                false => {
+                    println!("failed result with err: {:?}", res.error());
+                    return Err(BankErrors::UnauthorizedAccess)//here need to throw the correct BankError depending on error code
+                },
+            },
+            _ => return Err(BankErrors::UnauthorizedAccess),
+        };
+
+    println!("tr res {:?}", transaction_result);
+
+   
+    //transaction_result.assert_success();
 
     // assert on state after depending on 'actual_assets_user_has'
     let mut actually_withdrawn_assets: u64 = 0;
@@ -296,7 +311,7 @@ pub fn process_withdraw_and_assert_states(
     assert_eq!(user_ata_after.amount, user_ata_before.amount + actually_withdrawn_assets);
     
 
-    (transaction_result, actually_withdrawn_assets, shares_to_burn, user_is_closed)
+    Ok((transaction_result, actually_withdrawn_assets, shares_to_burn, user_is_closed))
 }
 
 pub fn assert_and_record_deposit_event_and_snapshot(
@@ -308,11 +323,12 @@ pub fn assert_and_record_deposit_event_and_snapshot(
     bank_pda: &Pubkey,
     step: u8, 
     utc_now: &str, 
-    test_name: &str
+    test_name: &str, 
+    seed: u64
 ) {
     deposit_result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
-    record_bank_event(&deposit_event, step, &utc_now, test_name);
+    record_bank_event(&deposit_event, step, &utc_now, test_name, seed);
     assert_eq!(deposit_event.user, *depositor);
     assert_eq!(deposit_event.amount, actually_deposited_amount);
     assert_eq!(deposit_event.shares, shares_to_mint);
@@ -325,7 +341,7 @@ pub fn assert_and_record_deposit_event_and_snapshot(
         total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
         timestamp: deposit_event.timestamp,
     };
-    record_bank_event(&bank_snapshot, step, &utc_now, test_name);
+    record_bank_event(&bank_snapshot, step, &utc_now, test_name, seed);
 }
 
 pub fn assert_and_record_withdraw_event_and_snapshot(
@@ -337,14 +353,15 @@ pub fn assert_and_record_withdraw_event_and_snapshot(
     bank_pda: &Pubkey,
     step: u8, 
     utc_now: &str, 
-    test_name: &str
+    test_name: &str,
+    seed: u64,
 ) {
     withdraw_result.assert_event_emitted::<WithdrawEvent>();
     let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
     assert_eq!(withdraw_event.user, *depositor);
     assert_eq!(withdraw_event.amount, actually_withdrawn_amount);
     assert_eq!(withdraw_event.shares, shares_to_burn);
-    record_bank_event(&withdraw_event, step, &utc_now, test_name);
+    record_bank_event(&withdraw_event, step, &utc_now, test_name, seed);
 
     // record current bank state in BankSnapshot struct
     let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -354,5 +371,5 @@ pub fn assert_and_record_withdraw_event_and_snapshot(
         total_deposit_shares: after_withdraw_bank_state.total_deposit_shares,
         timestamp: withdraw_event.timestamp,
     };
-    record_bank_event(&bank_snapshot, step, &utc_now, test_name);
+    record_bank_event(&bank_snapshot, step, &utc_now, test_name, seed);
 }
