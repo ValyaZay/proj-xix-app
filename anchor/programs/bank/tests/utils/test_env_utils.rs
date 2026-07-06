@@ -122,6 +122,31 @@ pub fn init_bank_and_assert(
     ctx.svm.assert_account_exists(&bank_token_account_pda);
 }
 
+pub fn init_user_and_assert(
+    ctx: &mut AnchorContext,
+    depositor: &Keypair,
+) {
+    let user_pda = get_user_account_pda(depositor.pubkey());
+
+    let init_user_accounts = accounts::InitUser {
+        user: depositor.pubkey(),
+        user_state: user_pda,
+        system_program: anchor_lang::system_program::ID,
+    };
+
+    let inx = ctx
+        .program()
+        .accounts(init_user_accounts)
+        .args(args::InitUser {})
+        .instruction()
+        .unwrap();
+
+    let transaction_result = ctx.execute_instruction(inx, &[&depositor]).unwrap();
+    transaction_result.assert_success();
+
+    ctx.svm.assert_account_exists(&user_pda);
+}
+
 pub fn process_deposit_and_assert_states(
     ctx: &mut AnchorContext, 
     bank_authority: &Keypair,

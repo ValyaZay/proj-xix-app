@@ -39,6 +39,8 @@ fn deposit_should_revert_if_amount_is_less_than_allowed() {
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
+    init_user_and_assert(&mut ctx, &depositor);
+
     let amount_to_deposit = MIN_USDC_DEPOSIT - 1;
     let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
@@ -68,6 +70,8 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
+
+    init_user_and_assert(&mut ctx, &depositor);
 
     let amount_to_deposit = MAX_USDC_DEPOSIT + 1;
     let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
@@ -102,6 +106,8 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let amount_to_deposit = MIN_USDC_DEPOSIT;
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     //let depositor_sol_account_balance_init = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
+
+    init_user_and_assert(&mut ctx, &depositor);
 
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
@@ -159,10 +165,9 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     assert_eq!(user_ata_account_updated.amount, init_user_ata_balance - amount_to_deposit);
 
     // Assert - fees are paid by the depositor
-    let tx_fee_to_validator = &result.inner().fee;
-    let sol_user_state_balance = ctx.svm.get_balance(&user_state_pda).unwrap(); // user state account was created during deposit inx
+    let tx_fee_to_validator = &result.inner().fee;    
     let depositor_sol_account_balance_updated = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
-    assert_eq!(depositor_sol_account_balance_init, depositor_sol_account_balance_updated + tx_fee_to_validator + sol_user_state_balance);
+    assert_eq!(depositor_sol_account_balance_init, depositor_sol_account_balance_updated + tx_fee_to_validator);
 
     // invariant check
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account_updated.amount, bank_state_updated.total_deposits);
@@ -192,6 +197,8 @@ fn deposit_should_revert_if_user_is_not_user_state_owner() {
     let user_state_pda = get_user_account_pda(depositor.pubkey());
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 2).unwrap();
+
+    init_user_and_assert(&mut ctx, &depositor);
     
     // Arrange - strange depositor
     let strange_depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
