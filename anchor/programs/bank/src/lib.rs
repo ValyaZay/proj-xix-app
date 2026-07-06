@@ -42,6 +42,16 @@ pub mod bank {
         Ok(())
     }
 
+    pub fn init_user(ctx: Context<InitUser>) -> Result<()> {
+        let user_state = &mut ctx.accounts.user_state;
+        user_state.set_inner(User { 
+            user: ctx.accounts.user.key(), 
+            deposit_usdc_shares: 0,
+        });
+       
+       Ok(())
+    }
+
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         require!(amount >= MIN_USDC_DEPOSIT, BankErrors::NotEnoughAmountToDeposit);
         require!(amount <= MAX_USDC_DEPOSIT, BankErrors::TooBigAmountToDeposit);
@@ -52,13 +62,6 @@ pub mod bank {
         require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
 
         let user_state = &mut ctx.accounts.user_state;
-        if !user_state.is_initialized {
-            user_state.set_inner(User { 
-                user: ctx.accounts.user.key(), 
-                deposit_usdc_shares: 0,
-                is_initialized: true
-            });
-        }
 
         // safety invariant
         require_keys_eq!(user_state.user, ctx.accounts.user.key(), BankErrors::UnauthorizedAccess);
@@ -205,14 +208,29 @@ pub struct InitBank<'info> {
 }
 
 #[derive(Accounts)]
+pub struct InitUser<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        init,
+        payer = user,
+        space = User::DISCRIMINATOR.len() + User::INIT_SPACE,
+        seeds = [SEED_USER_STATE, user.key().as_ref()],
+        bump,
+    )]
+    pub user_state: Account<'info, User>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
     #[account(
-        init_if_needed,
-        payer = user,
-        space = User::DISCRIMINATOR.len() + User::INIT_SPACE,
+        mut,
         seeds = [SEED_USER_STATE, user.key().as_ref()],
         bump,
     )]

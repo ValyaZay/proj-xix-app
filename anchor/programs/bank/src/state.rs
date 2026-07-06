@@ -7,7 +7,6 @@ use crate::{ DISCR_USER, DISCR_BANK };
 pub struct User {
     pub user: Pubkey,
     pub deposit_usdc_shares: u64,
-    pub is_initialized: bool,
 }
 
 #[account(discriminator = &DISCR_BANK)]
