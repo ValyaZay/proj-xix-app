@@ -6,7 +6,8 @@ use ::bank::{//import from external crate (not from idl modules)
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT, SECONDS_PER_WEEK },
     shares_math::{convert_shares_to_assets, convert_assets_to_shares},
 };
-use solana_sdk::native_token::LAMPORTS_PER_SOL;
+use solana_keypair::Keypair;
+use solana_sdk::{native_token::LAMPORTS_PER_SOL};
 use rand::RngExt;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -478,8 +479,11 @@ fn randomized_test() {
     let mut amount_of_deposits = 0;
     let mut amount_of_withdraws = 0;
 
+    let mut depositors: Vec<Keypair> = Vec::new();
+    let mut sum_of_users_shares = 0;
+
     let mut rng = StdRng::seed_from_u64(seed);
-    for _ in 0..10 {
+    for _ in 0..100 {
         let instruction = BankInstruction::random(&mut rng);
 
         match instruction {
@@ -488,10 +492,35 @@ fn randomized_test() {
             },
             BankInstruction::Deposit => {
                 amount_of_deposits += 1;
-                let random_amount_to_deposit = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-                println!("init user and deposit an amount {}", random_amount_to_deposit);
-                // add user to a Vec<Keypair> to choose it for other inxs randomly
+                // add logic for deposit for existing user
                 
+                /////////
+                // Arrange - depositor
+                let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
+                let user_state_pda = get_user_account_pda(depositor.pubkey());
+                let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
+                ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
+
+                // Deposit
+                let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
+                println!("init user and deposit an amount {}", amount_to_deposit);
+                let (deposit_result, actual_deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, &depositor, mint, &user_ata, amount_to_deposit);
+
+                // step is zero - add it to user state???
+                assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, 0, &utc_now, test_name);
+
+                // invariants check
+                let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+                let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+                bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
+
+                sum_of_users_shares += shares_to_mint;
+                sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
+                
+                time_travel(&mut ctx);
+
+                // add user to a Vec<Keypair> to choose it for other inxs randomly
+                depositors.push(depositor);
             },
             BankInstruction::Withdraw => {
                 amount_of_withdraws += 1;
@@ -507,6 +536,8 @@ fn randomized_test() {
     }    
     println!("amount_of_deposits {}", amount_of_deposits);
     println!("amount_of_withdraws {}", amount_of_withdraws);
+
+    println!("depositors amount is {}, members: {:?}", depositors.len(), depositors)
 }
 
 pub enum BankInstruction {
