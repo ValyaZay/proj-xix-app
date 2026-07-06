@@ -211,7 +211,6 @@ pub fn process_withdraw_and_assert_states(
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     let user_state_before: User = ctx.get_account(&user_state_pda).unwrap();
     let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
-    println!("user_ata_before.amount {}", user_ata_before.amount);
 
     let actual_assets_user_has = convert_shares_to_assets(
         user_state_before.deposit_usdc_shares,
@@ -269,7 +268,6 @@ pub fn process_withdraw_and_assert_states(
     assert_eq!(bank_token_account_after.amount, bank_token_account_before.amount - actually_withdrawn_assets);
 
     let user_ata_after: TokenAccount = ctx.get_account(&user_ata).unwrap();
-    println!("user_ata_after.amount {}", user_ata_after.amount);
     assert_eq!(user_ata_after.amount, user_ata_before.amount + actually_withdrawn_assets);
     
 

@@ -51,7 +51,7 @@ Make it simple and correct, testable, deployable, frontend-integratable.
                                       random user (among inited) deposits -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                       random user (among inited) withdraws -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                 }
-4. Replay events from the recorded events and compare the bank and users state:
+4. Replay events from the recorded events and compare the bank and users state. Add a relevant path to a file with recorded events and use a command `cargo run -p replay`:
    1. &#x2705;  state replay events for statefull fuzz scenario 3;
    2. logic replay events for statefull fuzz scenario 3;
    3. state replay events for statefull fuzz scenario 4;

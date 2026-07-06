@@ -360,19 +360,11 @@ fn deposit_withdraw_withdraw_should_update_state() {
     let utc_now = Utc::now().to_string();
     let test_name = "deposit_withdraw_withdraw_should_update_state";
 
-    // diagnostic variables:
-    let mut attempts_to_withdraw_more_than_has = 0;
-    let mut attempts_to_withdraw_all_1st_pass = 0;
-    let mut attempts_to_withdraw_amount_1st_pass = 0;
-    let mut attempts_to_withdraw_all_2nd_pass = 0;
-    let mut attempts_to_withdraw_amount_2nd_pass = 0;
-
-    // Arrange
     let mut ctx = init_anchor_ctx();
-    let mut num = 10;
-    let ref_num = num;
+    let mut num = 100;
     let mut rng = rand::rng();
-    
+    let mut sum_of_users_shares = 0;
+
     // Arrange mint
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
 
@@ -382,11 +374,6 @@ fn deposit_withdraw_withdraw_should_update_state() {
     let bank_token_account_pda = get_bank_token_account_pda(mint);
 
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
-
-    let mut final_bank_total_deposits = 0;
-    let mut final_bank_total_shares= 0;
-    let mut final_bank_balance= 0;
-    //let mut sum_of_user_shares = 0;
 
      // Act
     /*
@@ -409,6 +396,14 @@ fn deposit_withdraw_withdraw_should_update_state() {
         let (deposit_result, actual_deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, &depositor, mint, &user_ata, amount_to_deposit);
 
         assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, step, &utc_now, test_name);
+
+        // invariants check
+        let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+        let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+        bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
+
+        sum_of_users_shares += shares_to_mint;
+        sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
         
         time_travel(&mut ctx);
 
@@ -423,23 +418,17 @@ fn deposit_withdraw_withdraw_should_update_state() {
         assert_and_record_withdraw_event_and_snapshot(&ctx, &withdraw_1_result, &depositor.pubkey(), actually_withdrawn_assets_1, shares_to_burn_1, &bank_pda, step, &utc_now, test_name);
 
         // invariants check
+        let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+        let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+        bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
+
+        sum_of_users_shares -= shares_to_burn_1;
+        sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
 
         time_travel(&mut ctx);
 
         // roll step
         step += 1;
-
-        
-        // let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-        // bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
-
-        //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
-
-        // invariants check
-        // let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-        // bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, final_bank_balance);
-
-        //sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_user_shares, after_withdraw_1_bank_state.total_deposit_shares);
 
         // check if user exists, so he has any shares are left for the user
         if !user_is_closed {
@@ -452,6 +441,12 @@ fn deposit_withdraw_withdraw_should_update_state() {
                 assert_and_record_withdraw_event_and_snapshot(&ctx, &withdraw_2_result, &depositor.pubkey(), actually_withdrawn_assets_2, shares_to_burn_2, &bank_pda, step, &utc_now, test_name);
 
                 // invariants check
+                let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+                let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+                bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
+
+                sum_of_users_shares -= shares_to_burn_2;
+                sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
 
                 time_travel(&mut ctx);
             }
@@ -459,18 +454,6 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
         num -= 1;
     }
-
-    // print diagnostic variables
-    /*
-    assert_eq!(ref_num, attempts_to_withdraw_all_1st_pass + attempts_to_withdraw_amount_1st_pass);
-    assert_eq!(attempts_to_withdraw_amount_1st_pass, attempts_to_withdraw_all_2nd_pass + attempts_to_withdraw_amount_2nd_pass);
-    println!("------- print diagnostic variables ----------");
-    println!("attempts_to_withdraw_more_than_deposit: {}", attempts_to_withdraw_more_than_has);
-    println!("attempts_to_withdraw_amount_1st_pass: {}", attempts_to_withdraw_amount_1st_pass);
-    println!("--------> attempts_to_withdraw_amount_2nd_pass: {}", attempts_to_withdraw_amount_2nd_pass);
-    println!("--------> attempts_to_withdraw_all_2nd_pass: {}", attempts_to_withdraw_all_2nd_pass);
-    println!("attempts_to_withdraw_all_1st_pass: {}", attempts_to_withdraw_all_1st_pass);
-    */
 }
 
 #[test]
