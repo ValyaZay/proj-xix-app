@@ -475,8 +475,11 @@ fn randomized_test() {
 
     //choose random inx
     let seed: u64 = 12345;
+    let mut amount_of_deposits = 0;
+    let mut amount_of_withdraws = 0;
+
     let mut rng = StdRng::seed_from_u64(seed);
-    for _ in 0..=10 {
+    for _ in 0..10 {
         let instruction = BankInstruction::random(&mut rng);
 
         match instruction {
@@ -484,12 +487,17 @@ fn randomized_test() {
                 println!("Is not implemented yet");
             },
             BankInstruction::Deposit => {
-                println!("init user and deposit an amount");
-                // add user to an array to choose it for other inxs randomly
-                // assert states after inx
+                amount_of_deposits += 1;
+                let random_amount_to_deposit = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
+                println!("init user and deposit an amount {}", random_amount_to_deposit);
+                // add user to a Vec<Keypair> to choose it for other inxs randomly
+                
             },
             BankInstruction::Withdraw => {
-                println!("withdraw an amount for a user");
+                amount_of_withdraws += 1;
+                let random_amount_to_withdraw = rng.random_range(0..=MAX_USDC_DEPOSIT);
+                // get random user from Vec<Keypair>
+                println!("withdraw an amount {} for a user", random_amount_to_withdraw);
                 // assert states after inx
             },
             BankInstruction::Swap => {
@@ -497,6 +505,8 @@ fn randomized_test() {
             }
         }
     }    
+    println!("amount_of_deposits {}", amount_of_deposits);
+    println!("amount_of_withdraws {}", amount_of_withdraws);
 }
 
 pub enum BankInstruction {
