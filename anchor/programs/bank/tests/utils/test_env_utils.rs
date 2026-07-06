@@ -1,11 +1,13 @@
 use anchor_lang::{self};
 use anchor_lang::declare_program;
-use anchor_litesvm::{ AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
+use anchor_litesvm::{ AccountError, AnchorContext, AnchorLiteSVM, AssertionHelpers, EventHelpers, Instruction, Pubkey, Signer, TestHelpers, TransactionResult};
 use anchor_spl::{ token_interface::TokenAccount};
+use ::bank::{convert_assets_to_shares, convert_shares_to_assets};
 use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent, WithdrawEvent, BankSnapshot},
+    constants::MIN_USDC_DEPOSIT,
 };
 
 use crate::utils::event_recorder::record_bank_event;
@@ -16,7 +18,7 @@ declare_program!(bank);
 
 use self::bank::{
     client::{accounts, args},
-    accounts::Bank
+    accounts::{Bank, User}
     //events::DepositEvent, //import from idl modules
 };
 
@@ -128,13 +130,30 @@ pub fn process_deposit_and_assert_states(
     mint: Pubkey, 
     user_ata: &Pubkey, 
     amount: u64
-) -> TransactionResult {
-    // derive pdas here, not pass
+) -> (TransactionResult, u64, u64) {
+    // derive pdas here, not pass???
     let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
     let bank_token_account_pda = get_bank_token_account_pda(mint);
 
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+
+    
+    let user_state_before: User = match ctx.get_account(&user_state_pda) {
+        Ok(user_state) => user_state,
+        Err(error) => {
+            match error {
+                AccountError::AccountNotFound(_) => {
+                    User::default()
+                }
+                _ => panic!("Cant get user state")
+            }
+        }
+    };
+    let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
+
+    let shares_to_mint = convert_assets_to_shares(amount, bank_state_before.total_deposit_shares, bank_state_before.total_deposits, false);
+    
 
     let deposit_accounts = accounts::Deposit {
         user: depositor.pubkey(),
@@ -159,22 +178,25 @@ pub fn process_deposit_and_assert_states(
         .execute_instruction(inx, &[&depositor])
         .unwrap();
 
+    // Assert bank state
     let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_after: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-
-    // Assert bank state
     assert_eq!(bank_state_after.total_deposits, bank_state_before.total_deposits + amount);
-    assert_eq!(bank_state_after.total_deposit_shares, bank_state_before.total_deposit_shares + amount); //here should be calculated shares amount, not assets amount!
+    assert_eq!(bank_state_after.total_deposit_shares, bank_state_before.total_deposit_shares + shares_to_mint);
     assert_eq!(bank_token_account_after.amount, bank_token_account_before.amount + amount);
 
     // Assert user state
+    let user_state_after: User = ctx.get_account(&user_state_pda).unwrap();
+    let user_ata_after: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    assert_eq!(user_state_after.deposit_usdc_shares, user_state_before.deposit_usdc_shares + shares_to_mint);
+    assert_eq!(user_ata_after.amount, user_ata_before.amount - amount);
 
-    transaction_result
+    (transaction_result, amount, shares_to_mint)
 }
 
 
 
-pub fn withdraw(
+pub fn process_withdraw_and_assert_states(
     ctx: &mut AnchorContext, 
     user_state_pda: &Pubkey, 
     depositor: &Keypair, 
@@ -183,7 +205,20 @@ pub fn withdraw(
     bank_token_account_pda: &Pubkey, 
     user_ata: &Pubkey, 
     amount: u64
-) -> TransactionResult {
+) -> (TransactionResult, u64, u64, bool) {
+    println!("withdraw amount {} for user {}", amount, depositor.pubkey());
+    let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    let user_state_before: User = ctx.get_account(&user_state_pda).unwrap();
+    let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    println!("user_ata_before.amount {}", user_ata_before.amount);
+
+    let actual_assets_user_has = convert_shares_to_assets(
+        user_state_before.deposit_usdc_shares,
+        bank_state_before.total_deposit_shares,
+        bank_state_before.total_deposits
+    );
+
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
         user_state: *user_state_pda,
@@ -202,14 +237,51 @@ pub fn withdraw(
             .instruction()
             .unwrap();
     
-    ctx
+    let transaction_result = ctx
         .execute_instruction(inx, &[&depositor])
-        .unwrap()
+        .unwrap();
+    transaction_result.assert_success();
+
+    // assert on state after depending on 'actual_assets_user_has'
+    let mut actually_withdrawn_assets: u64 = 0;
+    let mut shares_to_burn: u64 = 0;
+    let mut user_is_closed: bool = false;
+    if actual_assets_user_has < (amount + MIN_USDC_DEPOSIT) {
+        // withdraw all
+        actually_withdrawn_assets = actual_assets_user_has;
+        shares_to_burn = user_state_before.deposit_usdc_shares;
+        ctx.svm.assert_account_closed(&user_state_pda);
+        user_is_closed = true;
+    } else {
+        // withdraw only claimed amount
+        actually_withdrawn_assets = amount;
+        shares_to_burn = convert_assets_to_shares(amount, bank_state_before.total_deposit_shares, bank_state_before.total_deposits, true);
+
+        let user_state_after: User = ctx.get_account(&user_state_pda).unwrap();
+        assert_eq!(user_state_after.deposit_usdc_shares, user_state_before.deposit_usdc_shares - shares_to_burn);
+    }
+
+    let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();
+    assert_eq!(bank_state_after.total_deposits, bank_state_before.total_deposits - actually_withdrawn_assets);
+    assert_eq!(bank_state_after.total_deposit_shares, bank_state_before.total_deposit_shares - shares_to_burn);
+
+    let bank_token_account_after: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+    assert_eq!(bank_token_account_after.amount, bank_token_account_before.amount - actually_withdrawn_assets);
+
+    let user_ata_after: TokenAccount = ctx.get_account(&user_ata).unwrap();
+    println!("user_ata_after.amount {}", user_ata_after.amount);
+    assert_eq!(user_ata_after.amount, user_ata_before.amount + actually_withdrawn_assets);
+    
+
+    (transaction_result, actually_withdrawn_assets, shares_to_burn, user_is_closed)
 }
 
-pub fn record_deposit_event_and_snapshot(
+pub fn assert_and_record_deposit_event_and_snapshot(
     ctx: &AnchorContext, 
-    deposit_result: &TransactionResult, 
+    deposit_result: &TransactionResult,
+    depositor: &Pubkey,
+    actually_deposited_amount: u64,
+    shares_to_mint: u64,
     bank_pda: &Pubkey,
     step: u8, 
     utc_now: &str, 
@@ -218,6 +290,9 @@ pub fn record_deposit_event_and_snapshot(
     deposit_result.assert_event_emitted::<DepositEvent>();
     let deposit_event: DepositEvent = deposit_result.parse_event().unwrap();
     record_bank_event(&deposit_event, step, &utc_now, test_name);
+    assert_eq!(deposit_event.user, *depositor);
+    assert_eq!(deposit_event.amount, actually_deposited_amount);
+    assert_eq!(deposit_event.shares, shares_to_mint);
 
     // record current bank state in BankSnapshot struct
     let after_deposit_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -226,6 +301,35 @@ pub fn record_deposit_event_and_snapshot(
         total_deposits: after_deposit_bank_state.total_deposits,
         total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
         timestamp: deposit_event.timestamp,
+    };
+    record_bank_event(&bank_snapshot, step, &utc_now, test_name);
+}
+
+pub fn assert_and_record_withdraw_event_and_snapshot(
+    ctx: &AnchorContext, 
+    withdraw_result: &TransactionResult,
+    depositor: &Pubkey,
+    actually_withdrawn_amount: u64,
+    shares_to_burn: u64,  
+    bank_pda: &Pubkey,
+    step: u8, 
+    utc_now: &str, 
+    test_name: &str
+) {
+    withdraw_result.assert_event_emitted::<WithdrawEvent>();
+    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
+    assert_eq!(withdraw_event.user, *depositor);
+    assert_eq!(withdraw_event.amount, actually_withdrawn_amount);
+    assert_eq!(withdraw_event.shares, shares_to_burn);
+    record_bank_event(&withdraw_event, step, &utc_now, test_name);
+
+    // record current bank state in BankSnapshot struct
+    let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_snapshot = BankSnapshot {
+        user: withdraw_event.user,
+        total_deposits: after_withdraw_bank_state.total_deposits,
+        total_deposit_shares: after_withdraw_bank_state.total_deposit_shares,
+        timestamp: withdraw_event.timestamp,
     };
     record_bank_event(&bank_snapshot, step, &utc_now, test_name);
 }
