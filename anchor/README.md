@@ -30,8 +30,8 @@ Make it simple and correct, testable, deployable, frontend-integratable.
      - &#x2705; sum of users deposit shares == bank total deposit shares
      - &#x2705; bank_token_account.amount >= bank_state.total_deposits
    - &#x2705; double withdraw attempt;
-   - rounding edge cases;
-   - zero deposit / zero share cases;
+   - &#x2705; rounding edge cases;
+   - &#x2705; zero deposit / zero share cases;
    - &#x2705; repeated deposit -> withdraw cycles.
 3. Stateful fuzzing - scenarios:
    1. &#x2705; init_bank -> init_user -> for _ 0..100 { deposit -> check bank and user state -> check invariants -> roll slot and blockhash } 
@@ -46,15 +46,15 @@ Make it simple and correct, testable, deployable, frontend-integratable.
                                             withdraw -> check bank and user state -> check invariants -> roll slot and blockhash;
                                             withdraw -> check bank and user state -> check invariants -> roll slot and blockhash;
                                           }
-   4. init_bank -> for _ 0..100 { randomly choose actions among:
+   4. &#x2705; init_bank -> for _ 0..100 { randomly choose actions among:
                                       init_user -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                       random user (among inited) deposits -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                       random user (among inited) withdraws -> roll slot and blockhash -> set timestamp -> record event -> roll step -> check bank and user state -> check invariants;
                                 }
-4. Replay events from the recorded events and compare the bank and users state. Add a relevant path to a file with recorded events and use a command `cargo run -p replay`:
-   1. &#x2705;  state replay events for statefull fuzz scenario 3;
+4. Replay events from the recorded events and compare the bank and users state. In `replay/src/main::state_replay_events_from_source` add a relevant path to a file with recorded events and use a command `cargo run -p replay`:
+   1. &#x2705; state replay events for statefull fuzz scenario 3;
    2. logic replay events for statefull fuzz scenario 3;
-   3. state replay events for statefull fuzz scenario 4;
+   3. &#x2705; state replay events for statefull fuzz scenario 4;
    4. logic replay events for statefull fuzz scenario 4;
 
 **!!! The jsonl files that expose a bug are saved in replay/fixtures directory for further investigation and logic replay**
@@ -97,16 +97,19 @@ BankSnapshot
 
 &#x1F331; &#x1F331; &#x1F331; &#x1F331; &#x1F331;
 
-## Step 2 (DRAFT)
-AMM integration
+## Step 2
+1. Step 2A. Multi-asset vault (USDC + BTC)
+   * add support for the second asset - user can deposit both
+2. Step 2B. Asset exchange (AMM integration)
+3. Step 2C. Analytics
 
 ### 1. Goal
-Make simple and correct `swap` mechanics 
-Integrate AMM to the protocol logic
-Add BTC bank
-Update the user's state accordingly - there will be 2 assets already
+* Make simple and correct `swap` mechanics 
+* Integrate AMM to the protocol logic
+* Add BTC bank
+* Update the user's state accordingly - there will be 2 assets already
 
-### 2. Implemented features
+### 2. Features
 1. Swap
 2. Swap_preview
 
@@ -115,11 +118,24 @@ Update the user's state accordingly - there will be 2 assets already
    1. LiteSVM.
    2. Surfpool.
 2. Test cases: 
-- `swap` invariants:
-  - TODO
-- deposit → swap → withdraw
-- withdraw → deposit → swap
-- failed swap + recovery states
+- multi-asset valut invariant:
+  - deposit/withdraw invariants for both USDC and BTC:
+     - sum of users deposit shares == bank total deposit shares
+     - bank_token_account.amount >= bank_state.total_deposits
+     - no cross-bank state corruption
+- AMM `swap` invariants:
+  - no asset creation 
+  - no negative liquidity 
+  - reserves never become negative
+  - constant-product invariant (or whatever pricing model you choose) is preserved within rounding tolerance
+  - swap followed by reverse swap cannot generate profit when fees are zero (within rounding)
+  - protocol fees only increase protocol-owned liquidity
+  - failed swaps leave all state unchanged
+  - preview and executed swap agree (modulo slippage limits)
+- Scenarios:
+  - deposit → swap → withdraw
+  - withdraw → deposit → swap
+  - failed swap + recovery states
 
 ### 4. Observation
 1. Use the unified event schema:
