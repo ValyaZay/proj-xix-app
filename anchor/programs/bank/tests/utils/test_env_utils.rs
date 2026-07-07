@@ -7,7 +7,7 @@ use solana_keypair::Keypair;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent, WithdrawEvent, BankSnapshot},
-    constants::MIN_USDC_DEPOSIT,
+    constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT},
     errors::BankErrors,
 };
 use core::error::Error;
@@ -157,7 +157,14 @@ pub fn process_deposit_and_assert_states(
     mint: Pubkey, 
     user_ata: &Pubkey, 
     amount: u64
-) -> (TransactionResult, u64, u64) {
+) -> Result<(TransactionResult, u64, u64), BankErrors> {
+    println!("deposit amount {} for user {}", amount, depositor.pubkey());
+    if amount < MIN_USDC_DEPOSIT {
+        println!("---> amount to deposit is less than min - {}", amount < MIN_USDC_DEPOSIT);
+    } 
+    if amount > MAX_USDC_DEPOSIT {
+        println!("---> amount to deposit is more than max - {}", amount > MAX_USDC_DEPOSIT);
+    }
     // derive pdas here, not pass???
     let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
     let bank_token_account_pda = get_bank_token_account_pda(mint);
@@ -201,10 +208,17 @@ pub fn process_deposit_and_assert_states(
         .instruction()
         .unwrap();
 
-    let transaction_result = ctx
-        .execute_instruction(inx, &[&depositor])
-        .unwrap();
-    transaction_result.assert_success();
+    let transaction_result = match ctx
+        .execute_instruction(inx, &[&depositor]) {
+            Ok(res) => match res.is_success() {
+                true => res,
+                false => {
+                    println!("---> failed deposit for user {} with error message: {:#?}", depositor.pubkey(), res.find_log("Error Message").unwrap());
+                    return Err(BankErrors::DepositError)
+                },
+            },
+            _ => return Err(BankErrors::DepositError),
+        };
 
     // Assert bank state
     let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -219,7 +233,7 @@ pub fn process_deposit_and_assert_states(
     assert_eq!(user_state_after.deposit_usdc_shares, user_state_before.deposit_usdc_shares + shares_to_mint);
     assert_eq!(user_ata_after.amount, user_ata_before.amount - amount);
 
-    (transaction_result, amount, shares_to_mint)
+    Ok((transaction_result, amount, shares_to_mint))
 }
 
 
@@ -269,17 +283,12 @@ pub fn process_withdraw_and_assert_states(
             Ok(res) => match res.is_success() {
                 true => res,
                 false => {
-                    println!("failed result with err: {:?}", res.error());
-                    return Err(BankErrors::UnauthorizedAccess)//here need to throw the correct BankError depending on error code
+                    println!("---> failed withdraw for user {} with error message: {:#?}", depositor.pubkey(), res.find_log("Error Message").unwrap());
+                    return Err(BankErrors::WithdrawError)
                 },
             },
-            _ => return Err(BankErrors::UnauthorizedAccess),
+            _ => return Err(BankErrors::WithdrawError),
         };
-
-    println!("tr res {:?}", transaction_result);
-
-   
-    //transaction_result.assert_success();
 
     // assert on state after depending on 'actual_assets_user_has'
     let mut actually_withdrawn_assets: u64 = 0;

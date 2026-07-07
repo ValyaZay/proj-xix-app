@@ -46,4 +46,13 @@ pub enum BankErrors {
 
     #[msg("Zero Amount To Withdraw")]
     ZeroAmountToWithdraw,
+
+    #[msg("Withdraw Error")]
+    WithdrawError,
+
+    #[msg("Deposit Error")]
+    DepositError,
+
+    #[msg("User Has No Shares")]
+    UserHasNoShares,
 }

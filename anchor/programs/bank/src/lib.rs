@@ -102,6 +102,7 @@ pub mod bank {
     pub fn withdraw(ctx: Context<Withdraw>, assets_amount_to_withdraw: u64) -> Result<()> {
         require!(assets_amount_to_withdraw > 0, BankErrors::ZeroAmountToWithdraw);
         let user_state = &mut ctx.accounts.user_state;
+        require!(user_state.deposit_usdc_shares > 0, BankErrors::UserHasNoShares);
         let bank_state = &mut ctx.accounts.bank_state;
         
         // invariant check

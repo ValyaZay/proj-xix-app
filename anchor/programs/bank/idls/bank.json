@@ -706,6 +706,21 @@
       "code": 6014,
       "name": "ZeroAmountToWithdraw",
       "msg": "Zero Amount To Withdraw"
+    },
+    {
+      "code": 6015,
+      "name": "WithdrawError",
+      "msg": "Withdraw Error"
+    },
+    {
+      "code": 6016,
+      "name": "DepositError",
+      "msg": "Deposit Error"
+    },
+    {
+      "code": 6017,
+      "name": "UserHasNoShares",
+      "msg": "User Has No Shares"
     }
   ],
   "types": [

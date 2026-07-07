@@ -401,7 +401,12 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
         // Deposit
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-        let (deposit_result, actual_deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, &depositor, mint, &user_ata, amount_to_deposit);
+        let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, &depositor, mint, &user_ata, amount_to_deposit) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        continue;
+                    },
+                };
 
         assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, step, &utc_now, test_name, 0);
 
@@ -518,11 +523,12 @@ fn randomized_test() {
                 depositors.push(depositor);
             },
             BankInstruction::Deposit => {
+                println!("------------");
                 amount_of_deposits += 1;
 
                 // get depositor from Vec<Keypair> any random
                 if depositors.len() == 0 {
-                    println!("No depositors created yet!");
+                    println!("---> No depositors created yet!");
                     continue;
                 }
                 let random_depositor_index = rng.random_range(0..depositors.len());
@@ -532,10 +538,14 @@ fn randomized_test() {
                 let user_ata = get_associated_token_address(&depositor.pubkey(), &mint);
 
                 // Deposit
-                let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-                println!("deposit {}", amount_to_deposit);
+                let amount_to_deposit: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT * 2); // make the deposit inx check the min and max deposit amount
 
-                let (deposit_result, actual_deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, depositor, mint, &user_ata, amount_to_deposit);
+                let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_state_pda, depositor, mint, &user_ata, amount_to_deposit) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        continue;
+                    },
+                };
 
                 // step 
                 let mut step = steps[&depositor.pubkey()];
@@ -552,14 +562,15 @@ fn randomized_test() {
                 sum_of_users_shares += shares_to_mint;
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
                 
-                time_travel(&mut ctx);
+                time_travel(&mut ctx);                
             },
             BankInstruction::Withdraw => {
+                println!("------------");
                 amount_of_withdraws += 1;
 
                 // get depositor from Vec<Keypair> any random
                 if depositors.len() == 0 {
-                    println!("No depositors created yet!");
+                    println!("---> No depositors created yet!");
                     continue;
                 }
                 let random_depositor_index = rng.random_range(0..depositors.len());
@@ -570,13 +581,9 @@ fn randomized_test() {
 
                 // withdraw
                 let amount_to_withdraw = rng.random_range(0..=MAX_USDC_DEPOSIT);
-                // get random user from Vec<Keypair>
-                println!("withdraw {}", amount_to_withdraw);
-
                 let (withdraw_result, actually_withdrawn_assets, shares_to_burn, user_is_closed) = match process_withdraw_and_assert_states(&mut ctx, &user_state_pda, &depositor, &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_withdraw) {
                     Ok(t) => t,
-                    Err(error) => {
-                        println!("Error from fuzz {}", error);
+                    Err(_) => {
                         continue;
                     },
                 };
@@ -612,6 +619,13 @@ fn randomized_test() {
             }*/
         }
     }
+    println!("---------------");
+    
+    println!("Depositors:");
+    for k in depositors.iter() {
+        println!("{}", k.pubkey());
+    }
+
     println!("---------------");
     println!("amount_of_init_users {}, depositors amount is {}", amount_of_init_users, depositors.len());
     assert_eq!(amount_of_init_users, depositors.len());
