@@ -1,9 +1,9 @@
 // 1-byte discriminators
-pub const DISCR_USER: [u8;1] = [1];
+pub const DISCR_USER_SHARES: [u8;1] = [1];
 pub const DISCR_BANK: [u8;1] = [2];
 
 // State
-pub const SEED_USER_STATE: &[u8] = b"SEED_USER_STATE";
+pub const SEED_USER_SHARES: &[u8] = b"SEED_USER_SHARES";
 pub const SEED_BANK_STATE: &[u8] = b"SEED_BANK_STATE";
 pub const SEED_BANK_TOKEN_ACCOUNT: &[u8] = b"SEED_BANK_TOKEN_ACCOUNT";
 
@@ -13,3 +13,7 @@ pub const MAX_USDC_DEPOSIT: u64 = 1_000_000_000_000; // 1_000_000 usdc
 
 // time
 pub const SECONDS_PER_WEEK: i64 = 604_800;
+
+// tokens
+pub const MINT_WRAPPED_BTC_MAINNET: &str = "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh";
+pub const MINT_USDC_MAINNET: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

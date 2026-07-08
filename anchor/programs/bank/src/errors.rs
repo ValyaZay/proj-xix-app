@@ -8,6 +8,9 @@ pub enum BankErrors {
     #[msg("Mint For Bank Is Wrong")]
     MintForBankIsWrong,
 
+    #[msg("Mint For User Shares Is Wrong")]
+    MintForUserSharesIsWrong,
+
     #[msg("User Ata For Bank Is Wrong")]
     UserAtaForBankIsWrong,
 

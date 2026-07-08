@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-bank = "cDNe9N78wv8rfaFHNKwmarce5JhJ1HmETRtkYazsm2v"
+bank = "DscUGZtcgGvJ1GX4uTium9YFEd5EyXkNueP2ty9Mwm3X"
 
 [provider]
 cluster = "localnet"

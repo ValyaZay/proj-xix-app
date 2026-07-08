@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug)]
 pub struct DepositEvent {
     pub user: Pubkey,
+    pub mint: Pubkey,
     pub amount: u64,
     pub shares: u64,
     pub timestamp: i64,
@@ -14,6 +15,7 @@ pub struct DepositEvent {
 #[derive(Debug)]
 pub struct WithdrawEvent {
     pub user: Pubkey,
+    pub mint: Pubkey,
     pub amount: u64,
     pub shares: u64,
     pub timestamp: i64,
@@ -113,3 +115,4 @@ pub struct BankSnapshot {
     pub total_deposit_shares: u64,
     pub timestamp: i64,
 }
+

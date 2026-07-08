@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("cDNe9N78wv8rfaFHNKwmarce5JhJ1HmETRtkYazsm2v");
+declare_id!("DscUGZtcgGvJ1GX4uTium9YFEd5EyXkNueP2ty9Mwm3X");
 
 #[program]
 pub mod bank {
@@ -42,11 +42,12 @@ pub mod bank {
         Ok(())
     }
 
-    pub fn init_user(ctx: Context<InitUser>) -> Result<()> {
-        let user_state = &mut ctx.accounts.user_state;
-        user_state.set_inner(User { 
+    pub fn init_user_shares(ctx: Context<InitUserShares>) -> Result<()> {
+        let user_shares = &mut ctx.accounts.user_shares;
+        user_shares.set_inner(UserShares { 
             user: ctx.accounts.user.key(), 
-            deposit_usdc_shares: 0,
+            mint: ctx.accounts.mint.key(),
+            deposit_shares: 0,
         });
        
        Ok(())
@@ -61,10 +62,7 @@ pub mod bank {
         // invariant check
         require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
 
-        let user_state = &mut ctx.accounts.user_state;
-
-        // safety invariant
-        require_keys_eq!(user_state.user, ctx.accounts.user.key(), BankErrors::UnauthorizedAccess);
+        let user_shares = &mut ctx.accounts.user_shares;
 
         let received = transfer_from_ata_to_token_account(
             &mut ctx.accounts.bank_token_account,
@@ -86,11 +84,17 @@ pub mod bank {
         // update bank and user state
         bank_state.total_deposit_shares = bank_state.total_deposit_shares.checked_add(shares).ok_or(BankErrors::Overflow)?;
         bank_state.total_deposits = bank_state.total_deposits.checked_add(amount).ok_or(BankErrors::Overflow)?;
-        user_state.deposit_usdc_shares = user_state.deposit_usdc_shares.checked_add(shares).ok_or(BankErrors::Overflow)?;
 
+        user_shares.deposit_shares = user_shares.deposit_shares.checked_add(shares).ok_or(BankErrors::Overflow)?;
+
+        // let asset = match mint_key {
+
+
+        // }
         // emit event
         emit!(DepositEvent {
-            user: user_state.user,
+            user: user_shares.user,
+            mint: user_shares.mint,
             amount: amount,
             shares: shares,
             timestamp: Clock::get()?.unix_timestamp,
@@ -101,28 +105,28 @@ pub mod bank {
 
     pub fn withdraw(ctx: Context<Withdraw>, assets_amount_to_withdraw: u64) -> Result<()> {
         require!(assets_amount_to_withdraw > 0, BankErrors::ZeroAmountToWithdraw);
-        let user_state = &mut ctx.accounts.user_state;
-        require!(user_state.deposit_usdc_shares > 0, BankErrors::UserHasNoShares);
+        let user_shares = &mut ctx.accounts.user_shares;
+        require!(user_shares.deposit_shares > 0, BankErrors::UserHasNoShares);
         let bank_state = &mut ctx.accounts.bank_state;
         
         // invariant check
         require!(ctx.accounts.bank_token_account.amount >= bank_state.total_deposits, BankErrors::BankUnderfunded);
-        require!(bank_state.total_deposit_shares >= user_state.deposit_usdc_shares, BankErrors::InvalidBankState);
+        require!(bank_state.total_deposit_shares >= user_shares.deposit_shares, BankErrors::InvalidBankState);
 
         // how many assets does the user have?
-        let actual_assets_user_has = convert_shares_to_assets(user_state.deposit_usdc_shares, bank_state.total_deposit_shares, bank_state.total_deposits);
+        let actual_assets_user_has = convert_shares_to_assets(user_shares.deposit_shares, bank_state.total_deposit_shares, bank_state.total_deposits);
         
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT > user has => withdraw all
         // if assets_amount_to_withdraw + MIN_DEPOSIT_AMOUNT <= user has => withdraw assets_amount_to_withdraw
         let (actual_assets_amount_to_withdraw, actual_shares_amount_to_burn) = 
             if actual_assets_user_has < assets_amount_to_withdraw.checked_add(MIN_USDC_DEPOSIT).ok_or(BankErrors::Overflow)?
             {
-                (actual_assets_user_has, user_state.deposit_usdc_shares)
+                (actual_assets_user_has, user_shares.deposit_shares)
             } else {
                 (assets_amount_to_withdraw, convert_assets_to_shares(assets_amount_to_withdraw, bank_state.total_deposit_shares, bank_state.total_deposits, true))
             };
         require!(actual_shares_amount_to_burn > 0, BankErrors::ZeroSharesToBurn);
-        require!(user_state.deposit_usdc_shares >= actual_shares_amount_to_burn, BankErrors::InsufficientUserShares);
+        require!(user_shares.deposit_shares >= actual_shares_amount_to_burn, BankErrors::InsufficientUserShares);
         require!(bank_state.total_deposits >= actual_assets_amount_to_withdraw, BankErrors::BankUnderfunded);
 
         // transfer from bank token account PDA to user ata
@@ -159,19 +163,20 @@ pub mod bank {
         bank_state.total_deposit_shares = bank_state.total_deposit_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
 
         // update user_state
-        user_state.deposit_usdc_shares = user_state.deposit_usdc_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
+        user_shares.deposit_shares = user_shares.deposit_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
 
         // emit event
         emit!(WithdrawEvent {
-            user: user_state.user,
+            user: user_shares.user,
+            mint: user_shares.mint,
             amount: actual_assets_amount_to_withdraw,
             shares: actual_shares_amount_to_burn, 
             timestamp: Clock::get()?.unix_timestamp,
         });
 
         // close user state if shares == 0
-        if user_state.deposit_usdc_shares == 0 {
-            user_state.close(ctx.accounts.user.to_account_info())?;
+        if user_shares.deposit_shares == 0 {
+            user_shares.close(ctx.accounts.user.to_account_info())?;
         }
 
         Ok(())
@@ -209,19 +214,20 @@ pub struct InitBank<'info> {
 }
 
 #[derive(Accounts)]
-pub struct InitUser<'info> {
+pub struct InitUserShares<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
     #[account(
         init,
         payer = user,
-        space = User::DISCRIMINATOR.len() + User::INIT_SPACE,
-        seeds = [SEED_USER_STATE, user.key().as_ref()],
+        space = UserShares::DISCRIMINATOR.len() + UserShares::INIT_SPACE,
+        seeds = [SEED_USER_SHARES, mint.key().as_ref(), user.key().as_ref()],
         bump,
     )]
-    pub user_state: Account<'info, User>,
+    pub user_shares: Account<'info, UserShares>,
 
+    pub mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
 }
 
@@ -232,16 +238,18 @@ pub struct Deposit<'info> {
 
     #[account(
         mut,
-        seeds = [SEED_USER_STATE, user.key().as_ref()],
+        has_one = user @ BankErrors::UnauthorizedAccess,
+        has_one = mint @ BankErrors::MintForUserSharesIsWrong,
+        seeds = [SEED_USER_SHARES, mint.key().as_ref(), user.key().as_ref()],
         bump,
     )]
-    pub user_state: Account<'info, User>,
+    pub user_shares: Account<'info, UserShares>,
 
     #[account(
         mut,
         has_one = mint @ BankErrors::MintForBankIsWrong,
         constraint = bank_state.mint.key() == user_associated_token_account.mint.key() @ BankErrors::UserAtaForBankIsWrong,
-        seeds = [SEED_BANK_STATE, mint.key().as_ref(), bank_state.authority.as_ref()],
+        seeds = [SEED_BANK_STATE, mint.key().as_ref()],
         bump,
     )]
     pub bank_state: Account<'info, Bank>,
@@ -278,10 +286,11 @@ pub struct Withdraw<'info> {
     #[account(
         mut,
         has_one = user @ BankErrors::UnauthorizedAccess,
-        seeds = [SEED_USER_STATE, user.key().as_ref()],
+        has_one = mint @ BankErrors::MintForUserSharesIsWrong,
+        seeds = [SEED_USER_SHARES, mint.key().as_ref(), user.key().as_ref()],
         bump,
     )]
-    pub user_state: Account<'info, User>,
+    pub user_shares: Account<'info, UserShares>,
 
     #[account(
         mut,
