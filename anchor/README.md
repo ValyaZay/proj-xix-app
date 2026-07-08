@@ -163,6 +163,7 @@ BankSnapshot
 - invariant violations across flows
 
 3. Make use of event replay
+4. `cargo run --bin generate_supported_assets` - tool to save supported mint address and symbol in jsonl file
 
 &#x1F331; &#x1F331; &#x1F331; &#x1F331; &#x1F331;
 

@@ -1,12 +1,12 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use anchor_lang::prelude::*;
-use bank::{ USDC_MAINNET, WRAPPED_BTC_MAINNET };
+use bank::{ MINT_USDC_MAINNET, MINT_WRAPPED_BTC_MAINNET };
 use serde::{Deserialize, Serialize};
 
 pub fn main() {
-    set_supported_assets(Pubkey::from_str_const(USDC_MAINNET), String::from("USDC"));
-    set_supported_assets(Pubkey::from_str_const(WRAPPED_BTC_MAINNET), String::from("BTC"));
+    set_supported_assets(Pubkey::from_str_const(MINT_USDC_MAINNET), String::from("USDC"));
+    set_supported_assets(Pubkey::from_str_const(MINT_WRAPPED_BTC_MAINNET), String::from("BTC"));
 }
 
 fn set_supported_assets(mint: Pubkey, symbol: String) {
