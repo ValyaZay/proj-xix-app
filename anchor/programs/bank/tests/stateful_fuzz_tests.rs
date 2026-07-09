@@ -20,7 +20,7 @@ use utils::*;
 mod invariants_tests;
 use invariants_tests::*;
 
-use utils::bank::{
+use test_env_utils::bank::{
     client::{accounts, args},
     accounts::{UserShares, Bank},
     //events::DepositEvent, //import from idl modules
