@@ -10,17 +10,14 @@ use ::bank::{//import from external crate (not from idl modules)
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT},
     errors::BankErrors,
 };
-use core::error::Error;
 
 use crate::utils::event_recorder::record_bank_event;
 
 declare_program!(bank);
 
-
-
-use self::bank::{
+use crate::bank::{
     client::{accounts, args},
-    accounts::{Bank, User}
+    accounts::{Bank, UserShares}
     //events::DepositEvent, //import from idl modules
 };
 
@@ -31,6 +28,7 @@ pub fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     ctx
 }
 
+//Todo remove
 pub fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) {
     let ix = ctx
         .program()
@@ -53,10 +51,11 @@ pub fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubke
     ctx.svm.assert_account_exists(bank_token_account_pda);
 }
     
+// TODO remove
 pub fn get_deposit_inx(ctx: &mut AnchorContext, user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey, amount: u64) -> Instruction {
     let deposit_accounts = accounts::Deposit {
         user: *depositor,
-        user_state: *user_state_pda,
+        user_shares: *user_state_pda,
         bank_state: *bank_pda,
         mint: *mint,
         user_associated_token_account: *user_ata,
@@ -82,15 +81,15 @@ pub fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypai
 }
 
 pub fn get_bank_account_pda(mint: Pubkey, authority: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref(), authority.as_ref()], &self::bank::ID).0
+    Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref()], &self::bank::ID).0
 }
 
 pub fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0
 }
 
-pub fn get_user_account_pda(user: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"SEED_USER_STATE", user.as_ref()], &self::bank::ID).0
+pub fn get_user_shares_pda(user: &Pubkey, mint: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[b"SEED_USER_SHARES", mint.as_ref(), user.as_ref()], &self::bank::ID).0
 }
 
 pub fn init_bank_and_assert(
@@ -98,8 +97,9 @@ pub fn init_bank_and_assert(
     mint: &Pubkey, 
     bank_authority: &Keypair
 ) {
-    // derive pdas here, not pass
-    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref(), bank_authority.pubkey().as_ref()], &self::bank::ID).0;
+    // use dedicated function for pda derivation!!!
+    // Todo - use a dedicated function for this
+    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref()], &self::bank::ID).0;
 
     let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0;
 
@@ -124,35 +124,37 @@ pub fn init_bank_and_assert(
     ctx.svm.assert_account_exists(&bank_token_account_pda);
 }
 
-pub fn init_user_and_assert(
+pub fn init_user_shares_and_assert(
     ctx: &mut AnchorContext,
     depositor: &Keypair,
+    mint: &Pubkey,
 ) {
-    let user_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), mint);
 
-    let init_user_accounts = accounts::InitUser {
+    let init_user_accounts = accounts::InitUserShares {
         user: depositor.pubkey(),
-        user_state: user_pda,
+        user_shares: user_shares_pda,
+        mint: *mint,
         system_program: anchor_lang::system_program::ID,
     };
 
     let inx = ctx
         .program()
         .accounts(init_user_accounts)
-        .args(args::InitUser {})
+        .args(args::InitUserShares {})
         .instruction()
         .unwrap();
 
     let transaction_result = ctx.execute_instruction(inx, &[&depositor]).unwrap();
     transaction_result.assert_success();
 
-    ctx.svm.assert_account_exists(&user_pda);
+    ctx.svm.assert_account_exists(&user_shares_pda);
 }
 
 pub fn process_deposit_and_assert_states(
     ctx: &mut AnchorContext, 
     bank_authority: &Keypair,
-    user_state_pda: &Pubkey, 
+    user_shares_pda: &Pubkey, 
     depositor: &Keypair, 
     mint: Pubkey, 
     user_ata: &Pubkey, 
@@ -173,12 +175,12 @@ pub fn process_deposit_and_assert_states(
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
 
     
-    let user_state_before: User = match ctx.get_account(&user_state_pda) {
-        Ok(user_state) => user_state,
+    let user_shares_before: UserShares = match ctx.get_account(&user_shares_pda) {
+        Ok(user_shares) => user_shares,
         Err(error) => {
             match error {
                 AccountError::AccountNotFound(_) => {
-                    User::default()
+                    UserShares::default()
                 }
                 _ => panic!("Cant get user state")
             }
@@ -191,7 +193,7 @@ pub fn process_deposit_and_assert_states(
 
     let deposit_accounts = accounts::Deposit {
         user: depositor.pubkey(),
-        user_state: *user_state_pda,
+        user_shares: *user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: *user_ata,
@@ -228,9 +230,9 @@ pub fn process_deposit_and_assert_states(
     assert_eq!(bank_token_account_after.amount, bank_token_account_before.amount + amount);
 
     // Assert user state
-    let user_state_after: User = ctx.get_account(&user_state_pda).unwrap();
+    let user_shares_after: UserShares = ctx.get_account(&user_shares_pda).unwrap();
     let user_ata_after: TokenAccount = ctx.get_account(&user_ata).unwrap();
-    assert_eq!(user_state_after.deposit_usdc_shares, user_state_before.deposit_usdc_shares + shares_to_mint);
+    assert_eq!(user_shares_after.deposit_shares, user_shares_before.deposit_shares + shares_to_mint);
     assert_eq!(user_ata_after.amount, user_ata_before.amount - amount);
 
     Ok((transaction_result, amount, shares_to_mint))
@@ -240,7 +242,7 @@ pub fn process_deposit_and_assert_states(
 
 pub fn process_withdraw_and_assert_states(
     ctx: &mut AnchorContext, 
-    user_state_pda: &Pubkey, 
+    user_shares_pda: &Pubkey, 
     depositor: &Keypair, 
     bank_pda: &Pubkey, 
     mint: &Pubkey, 
@@ -251,18 +253,18 @@ pub fn process_withdraw_and_assert_states(
     println!("withdraw amount {} for user {}", amount, depositor.pubkey());
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-    let user_state_before: User = ctx.get_account(&user_state_pda).unwrap();
+    let user_shares_before: UserShares = ctx.get_account(&user_shares_pda).unwrap();
     let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
 
     let actual_assets_user_has = convert_shares_to_assets(
-        user_state_before.deposit_usdc_shares,
+        user_shares_before.deposit_shares,
         bank_state_before.total_deposit_shares,
         bank_state_before.total_deposits
     );
 
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: *user_state_pda,
+        user_shares: *user_shares_pda,
         bank_state: *bank_pda,
         mint: *mint,
         user_associated_token_account: *user_ata,
@@ -297,16 +299,16 @@ pub fn process_withdraw_and_assert_states(
     if actual_assets_user_has < (amount + MIN_USDC_DEPOSIT) {
         // withdraw all
         actually_withdrawn_assets = actual_assets_user_has;
-        shares_to_burn = user_state_before.deposit_usdc_shares;
-        ctx.svm.assert_account_closed(&user_state_pda);
+        shares_to_burn = user_shares_before.deposit_shares;
+        ctx.svm.assert_account_closed(&user_shares_pda);
         user_is_closed = true;
     } else {
         // withdraw only claimed amount
         actually_withdrawn_assets = amount;
         shares_to_burn = convert_assets_to_shares(amount, bank_state_before.total_deposit_shares, bank_state_before.total_deposits, true);
 
-        let user_state_after: User = ctx.get_account(&user_state_pda).unwrap();
-        assert_eq!(user_state_after.deposit_usdc_shares, user_state_before.deposit_usdc_shares - shares_to_burn);
+        let user_shares_after: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+        assert_eq!(user_shares_after.deposit_shares, user_shares_before.deposit_shares - shares_to_burn);
     }
 
     let bank_state_after: Bank = ctx.get_account(&bank_pda).unwrap();

@@ -1,5 +1,5 @@
 {
-  "address": "DscUGZtcgGvJ1GX4uTium9YFEd5EyXkNueP2ty9Mwm3X",
+  "address": "ACEfKa9BweU6aruuJ2NxHL9mR9WtxVgdxCQVkxLtmKK3",
   "metadata": {
     "name": "bank",
     "version": "0.1.0",
@@ -23,10 +23,13 @@
         {
           "name": "user",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "user_shares"
+          ]
         },
         {
-          "name": "user_state",
+          "name": "user_shares",
           "writable": true,
           "pda": {
             "seeds": [
@@ -44,11 +47,16 @@
                   82,
                   95,
                   83,
-                  84,
+                  72,
                   65,
-                  84,
-                  69
+                  82,
+                  69,
+                  83
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
               },
               {
                 "kind": "account",
@@ -85,11 +93,6 @@
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "account",
-                "path": "bank_state.authority",
-                "account": "Bank"
               }
             ]
           }
@@ -97,6 +100,7 @@
         {
           "name": "mint",
           "relations": [
+            "user_shares",
             "bank_state"
           ]
         },
@@ -265,10 +269,6 @@
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "account",
-                "path": "authority"
               }
             ]
           }
@@ -324,16 +324,16 @@
       "args": []
     },
     {
-      "name": "init_user",
+      "name": "init_user_shares",
       "discriminator": [
-        14,
-        51,
-        68,
-        159,
-        237,
-        78,
-        158,
-        102
+        113,
+        228,
+        95,
+        191,
+        41,
+        98,
+        170,
+        142
       ],
       "accounts": [
         {
@@ -342,7 +342,7 @@
           "signer": true
         },
         {
-          "name": "user_state",
+          "name": "user_shares",
           "writable": true,
           "pda": {
             "seeds": [
@@ -360,11 +360,16 @@
                   82,
                   95,
                   83,
-                  84,
+                  72,
                   65,
-                  84,
-                  69
+                  82,
+                  69,
+                  83
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
               },
               {
                 "kind": "account",
@@ -372,6 +377,9 @@
               }
             ]
           }
+        },
+        {
+          "name": "mint"
         },
         {
           "name": "system_program",
@@ -398,11 +406,11 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "user_state"
+            "user_shares"
           ]
         },
         {
-          "name": "user_state",
+          "name": "user_shares",
           "writable": true,
           "pda": {
             "seeds": [
@@ -420,11 +428,16 @@
                   82,
                   95,
                   83,
-                  84,
+                  72,
                   65,
-                  84,
-                  69
+                  82,
+                  69,
+                  83
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
               },
               {
                 "kind": "account",
@@ -461,11 +474,6 @@
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "account",
-                "path": "bank_state.authority",
-                "account": "Bank"
               }
             ]
           }
@@ -473,6 +481,7 @@
         {
           "name": "mint",
           "relations": [
+            "user_shares",
             "bank_state"
           ]
         },
@@ -597,7 +606,7 @@
       ]
     },
     {
-      "name": "User",
+      "name": "UserShares",
       "discriminator": [
         1
       ]
@@ -644,81 +653,86 @@
     },
     {
       "code": 6002,
+      "name": "MintForUserSharesIsWrong",
+      "msg": "Mint For User Shares Is Wrong"
+    },
+    {
+      "code": 6003,
       "name": "UserAtaForBankIsWrong",
       "msg": "User Ata For Bank Is Wrong"
     },
     {
-      "code": 6003,
+      "code": 6004,
       "name": "NotEnoughTokensTransferred",
       "msg": "Not Enough Tokens Transferred"
     },
     {
-      "code": 6004,
+      "code": 6005,
       "name": "ZeroSharesFromDeposit",
       "msg": "Zero Shares From Deposit"
     },
     {
-      "code": 6005,
+      "code": 6006,
       "name": "ZeroSharesToBurn",
       "msg": "Zero Shares To Burn"
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "NotEnoughAmountToDeposit",
       "msg": "Not Enough Amount To Deposit"
     },
     {
-      "code": 6007,
+      "code": 6008,
       "name": "TooBigAmountToDeposit",
       "msg": "Too Big Amount To Deposit"
     },
     {
-      "code": 6008,
+      "code": 6009,
       "name": "BankUnderfunded",
       "msg": "Bank Underfunded"
     },
     {
-      "code": 6009,
+      "code": 6010,
       "name": "InvalidBankState",
       "msg": "Invalid Bank State"
     },
     {
-      "code": 6010,
+      "code": 6011,
       "name": "Overflow",
       "msg": "Overflow"
     },
     {
-      "code": 6011,
+      "code": 6012,
       "name": "DivisionByZero",
       "msg": "Division By Zero"
     },
     {
-      "code": 6012,
+      "code": 6013,
       "name": "UnauthorizedAccess",
       "msg": "Unauthorized Access"
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "InsufficientUserShares",
       "msg": "Insufficient User Shares"
     },
     {
-      "code": 6014,
+      "code": 6015,
       "name": "ZeroAmountToWithdraw",
       "msg": "Zero Amount To Withdraw"
     },
     {
-      "code": 6015,
+      "code": 6016,
       "name": "WithdrawError",
       "msg": "Withdraw Error"
     },
     {
-      "code": 6016,
+      "code": 6017,
       "name": "DepositError",
       "msg": "Deposit Error"
     },
     {
-      "code": 6017,
+      "code": 6018,
       "name": "UserHasNoShares",
       "msg": "User Has No Shares"
     }
@@ -758,6 +772,10 @@
             "type": "pubkey"
           },
           {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
             "name": "amount",
             "type": "u64"
           },
@@ -773,7 +791,7 @@
       }
     },
     {
-      "name": "User",
+      "name": "UserShares",
       "type": {
         "kind": "struct",
         "fields": [
@@ -782,7 +800,11 @@
             "type": "pubkey"
           },
           {
-            "name": "deposit_usdc_shares",
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "deposit_shares",
             "type": "u64"
           }
         ]
@@ -795,6 +817,10 @@
         "fields": [
           {
             "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
             "type": "pubkey"
           },
           {

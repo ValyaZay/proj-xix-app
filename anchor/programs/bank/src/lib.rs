@@ -24,7 +24,7 @@ pub use shares_math::*;
 pub mod transfer_helpers;
 pub use transfer_helpers::*;
 
-declare_id!("DscUGZtcgGvJ1GX4uTium9YFEd5EyXkNueP2ty9Mwm3X");
+declare_id!("ACEfKa9BweU6aruuJ2NxHL9mR9WtxVgdxCQVkxLtmKK3");
 
 #[program]
 pub mod bank {
@@ -162,7 +162,7 @@ pub mod bank {
         bank_state.total_deposits = bank_state.total_deposits.checked_sub(actual_assets_amount_to_withdraw).ok_or(BankErrors::Overflow)?;
         bank_state.total_deposit_shares = bank_state.total_deposit_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
 
-        // update user_state
+        // update user_shares
         user_shares.deposit_shares = user_shares.deposit_shares.checked_sub(actual_shares_amount_to_burn).ok_or(BankErrors::Overflow)?;
 
         // emit event
@@ -194,7 +194,7 @@ pub struct InitBank<'info> {
         init,
         payer = authority,
         space = Bank::DISCRIMINATOR.len() + Bank::INIT_SPACE,
-        seeds = [SEED_BANK_STATE, mint.key().as_ref(), authority.key().as_ref()],
+        seeds = [SEED_BANK_STATE, mint.key().as_ref()],
         bump
     )]
     pub bank_state: Account<'info, Bank>,
@@ -296,7 +296,7 @@ pub struct Withdraw<'info> {
         mut,
         has_one = mint @ BankErrors::MintForBankIsWrong,
         constraint = bank_state.mint.key() == user_associated_token_account.mint.key() @ BankErrors::UserAtaForBankIsWrong,
-        seeds = [SEED_BANK_STATE, mint.key().as_ref(), bank_state.authority.as_ref()],
+        seeds = [SEED_BANK_STATE, mint.key().as_ref()],
         bump,
     )]
     pub bank_state: Account<'info, Bank>,

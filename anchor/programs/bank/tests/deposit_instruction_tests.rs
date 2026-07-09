@@ -15,7 +15,7 @@ mod invariants_tests;
 use invariants_tests::*;
 
 use utils::bank::{
-    accounts::{User, Bank},
+    accounts::{UserShares, Bank},
     //events::DepositEvent, //import from idl modules
 };
 
@@ -35,14 +35,14 @@ fn deposit_should_revert_if_amount_is_less_than_allowed() {
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
 
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     let amount_to_deposit = MIN_USDC_DEPOSIT - 1;
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     // Act / Assert
     ctx
@@ -67,14 +67,14 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
 
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     let amount_to_deposit = MAX_USDC_DEPOSIT + 1;
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     // Act / Assert
     ctx
@@ -85,7 +85,7 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
 }
 
 #[test]
-fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
+fn deposit_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
     // Arrange
     let mut ctx = init_anchor_ctx();
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
@@ -107,9 +107,9 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     //let depositor_sol_account_balance_init = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
 
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 2).unwrap();
     let user_ata_account: TokenAccount = ctx.get_account(&user_ata).unwrap();
@@ -119,21 +119,12 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     let depositor_sol_account_balance_init = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
     println!("depositor_sol_account_balance_init {}", depositor_sol_account_balance_init);
     
-    let init_user_state = match ctx.get_account::<User>(&user_state_pda) {
-        Ok(account) => account,
-        Err(error) => {
-            match error {
-                AccountError::AccountNotFound(_) => {
-                    User::default()
-                }
-                _ => panic!("Some problem when getting user account!")
-            }
-        }
-    };
-    let init_user_deposit_usdc_shares = init_user_state.deposit_usdc_shares;
+    let init_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    let init_user_deposit_shares = init_user_shares.deposit_shares;
 
     // Act
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    // replace with deposit_and_assert
+    let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     let result = ctx
     .execute_instruction(inx, &[&depositor])
@@ -153,8 +144,8 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
     assert_eq!(bank_state_updated.total_deposit_shares, shares_to_be_added_from_amount + init_total_shares);
     
     // Assert - UserState
-    let user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(user_state.deposit_usdc_shares, init_user_deposit_usdc_shares + shares_to_be_added_from_amount);
+    let user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(user_shares.deposit_shares, init_user_deposit_shares + shares_to_be_added_from_amount);
 
     // Assert - BankTokenAccount
     let bank_token_account_updated: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -171,12 +162,12 @@ fn deposit_should_update_bank_and_user_states_and_token_accounts_and_emit() {
 
     // invariant check
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account_updated.amount, bank_state_updated.total_deposits);
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(user_state.deposit_usdc_shares, bank_state_updated.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(user_shares.deposit_shares, bank_state_updated.total_deposit_shares);
 }
 
 
 #[test]
-fn deposit_should_revert_if_user_is_not_user_state_owner() {
+fn deposit_should_revert_if_user_is_not_user_shares_owner() {
     // it should not be possible to sign tx for other user state because there is a contstrain in seeds - user is involved, which is a signer as well
     
     // Arrange
@@ -194,11 +185,11 @@ fn deposit_should_revert_if_user_is_not_user_state_owner() {
     let amount_to_deposit = MIN_USDC_DEPOSIT;
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit * 2).unwrap();
 
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
     
     // Arrange - strange depositor
     let strange_depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
@@ -207,14 +198,14 @@ fn deposit_should_revert_if_user_is_not_user_state_owner() {
 
     // Act
     // 1. deposit and create acc for the depositor
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(inx, &[&depositor])
     .unwrap();
 
     // 2. deposit for another depositor's account - a signer is different
-    let inx = get_deposit_inx(&mut ctx, &user_state_pda, &strange_depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &strange_depositor_ata, amount_to_deposit);
+    let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &strange_depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &strange_depositor_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(inx, &[&strange_depositor])

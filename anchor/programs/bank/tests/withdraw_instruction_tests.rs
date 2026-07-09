@@ -3,7 +3,7 @@ use anchor_spl::token_interface::TokenAccount;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use utils::bank::{
     client::{accounts, args},
-    accounts::{User, Bank},
+    accounts::{UserShares, Bank},
     //events::DepositEvent, //import from idl modules
 };
 
@@ -16,7 +16,7 @@ mod invariants_tests;
 use invariants_tests::*;
 
 #[test]
-fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit() {
+fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
     // deposit MIN_USDC_DEPOSIT amount -> withdraw MIN_USDC_DEPOSIT amount -> close user acc
     let amount_to_deposit_and_withdraw = MIN_USDC_DEPOSIT;
 
@@ -32,15 +32,15 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit_and_withdraw).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit_and_withdraw);
+    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit_and_withdraw);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -56,8 +56,8 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit_and_withdraw);
 
     // ---> user state
-    let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit_and_withdraw);
+    let before_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(before_withdraw_user_shares.deposit_shares, amount_to_deposit_and_withdraw);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -66,7 +66,7 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
     // Withdraw
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -101,7 +101,7 @@ fn withdraw_all_should_update_bank_and_user_states_and_token_accounts_and_emit()
     ctx.svm.assert_token_balance(&bank_token_account_pda, 0);
 
     // ---> user state - is closed
-    ctx.svm.assert_account_closed(&user_state_pda);
+    ctx.svm.assert_account_closed(&user_shares_pda);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit_and_withdraw);
@@ -140,15 +140,15 @@ fn withdraw_no_dust_remains() {
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -164,8 +164,8 @@ fn withdraw_no_dust_remains() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit);
 
     // ---> user state
-    let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+    let before_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(before_withdraw_user_shares.deposit_shares, amount_to_deposit);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -174,7 +174,7 @@ fn withdraw_no_dust_remains() {
     // Withdraw
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -202,7 +202,7 @@ fn withdraw_no_dust_remains() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, 0);
 
     // ---> user state - is closed
-    ctx.svm.assert_account_closed(&user_state_pda);
+    ctx.svm.assert_account_closed(&user_shares_pda);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit);
@@ -212,7 +212,7 @@ fn withdraw_no_dust_remains() {
     let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
     assert_eq!(withdraw_event.user, depositor.pubkey());
     assert_eq!(withdraw_event.amount, amount_to_deposit);
-    assert_eq!(withdraw_event.shares, before_withdraw_user_state.deposit_usdc_shares);
+    assert_eq!(withdraw_event.shares, before_withdraw_user_shares.deposit_shares);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -240,15 +240,15 @@ fn withdraw_but_leave_minimum() {
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -264,8 +264,8 @@ fn withdraw_but_leave_minimum() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit);
 
     // ---> user state
-    let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+    let before_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(before_withdraw_user_shares.deposit_shares, amount_to_deposit);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -274,7 +274,7 @@ fn withdraw_but_leave_minimum() {
     // Withdraw
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -308,9 +308,9 @@ fn withdraw_but_leave_minimum() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit - amount_to_withdraw);
 
     // ---> user state - is not closed
-    ctx.svm.assert_account_exists(&user_state_pda);
-    let after_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(after_withdraw_user_state.deposit_usdc_shares, before_withdraw_user_state.deposit_usdc_shares - shares_to_burn);
+    ctx.svm.assert_account_exists(&user_shares_pda);
+    let after_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(after_withdraw_user_shares.deposit_shares, before_withdraw_user_shares.deposit_shares - shares_to_burn);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
@@ -326,7 +326,7 @@ fn withdraw_but_leave_minimum() {
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
 
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_state.deposit_usdc_shares, after_withdraw_bank_state.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_shares.deposit_shares, after_withdraw_bank_state.total_deposit_shares);
 
 }
 
@@ -348,15 +348,15 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -372,8 +372,8 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit);
 
     // ---> user state
-    let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+    let before_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(before_withdraw_user_shares.deposit_shares, amount_to_deposit);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -382,7 +382,7 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     // Withdraw
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -412,9 +412,9 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit);
 
     // ---> user state - exists
-    ctx.svm.assert_account_exists(&user_state_pda);
-    let after_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(after_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+    ctx.svm.assert_account_exists(&user_shares_pda);
+    let after_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(after_withdraw_user_shares.deposit_shares, amount_to_deposit);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -423,7 +423,7 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
 
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_state.deposit_usdc_shares, after_withdraw_bank_state.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_shares.deposit_shares, after_withdraw_bank_state.total_deposit_shares);
 
 }
 
@@ -445,15 +445,15 @@ fn withdraw_all_via_two_attempts() {
 
     // Arrange - depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    init_user_and_assert(&mut ctx, &depositor);
+    init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_state_pda = get_user_account_pda(depositor.pubkey());
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_state_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -469,8 +469,8 @@ fn withdraw_all_via_two_attempts() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit);
 
     // ---> user state
-    let before_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(before_withdraw_user_state.deposit_usdc_shares, amount_to_deposit);
+    let before_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(before_withdraw_user_shares.deposit_shares, amount_to_deposit);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, 0);
@@ -479,7 +479,7 @@ fn withdraw_all_via_two_attempts() {
     // Withdraw
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -513,9 +513,9 @@ fn withdraw_all_via_two_attempts() {
     ctx.svm.assert_token_balance(&bank_token_account_pda, amount_to_deposit - amount_to_withdraw);
 
     // ---> user state - is not closed
-    ctx.svm.assert_account_exists(&user_state_pda);
-    let after_withdraw_user_state: User = ctx.get_account(&user_state_pda).unwrap();
-    assert_eq!(after_withdraw_user_state.deposit_usdc_shares, before_withdraw_user_state.deposit_usdc_shares - shares_to_burn);
+    ctx.svm.assert_account_exists(&user_shares_pda);
+    let after_withdraw_user_shares: UserShares = ctx.get_account(&user_shares_pda).unwrap();
+    assert_eq!(after_withdraw_user_shares.deposit_shares, before_withdraw_user_shares.deposit_shares - shares_to_burn);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
@@ -531,7 +531,7 @@ fn withdraw_all_via_two_attempts() {
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
     bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
 
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_state.deposit_usdc_shares, after_withdraw_bank_state.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(after_withdraw_user_shares.deposit_shares, after_withdraw_bank_state.total_deposit_shares);
     
     // ROLL SLOT AND EXPIRE BLOCKHASH
     ctx.svm.advance_slot(500);
@@ -540,7 +540,7 @@ fn withdraw_all_via_two_attempts() {
     // Withdraw 2
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_state: user_state_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: user_ata,
@@ -559,7 +559,7 @@ fn withdraw_all_via_two_attempts() {
         .unwrap();
 
     let actual_assets_to_withdraw = convert_shares_to_assets(
-        after_withdraw_user_state.deposit_usdc_shares,
+        after_withdraw_user_shares.deposit_shares,
         after_withdraw_bank_state.total_deposit_shares,
         after_withdraw_bank_state.total_deposits);
 
@@ -567,13 +567,13 @@ fn withdraw_all_via_two_attempts() {
     // ---> bank state
     let after_withdraw_2_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
     assert_eq!(after_withdraw_2_bank_state.total_deposits, after_withdraw_bank_state.total_deposits - actual_assets_to_withdraw);
-    assert_eq!(after_withdraw_2_bank_state.total_deposit_shares, after_withdraw_bank_state.total_deposit_shares - after_withdraw_user_state.deposit_usdc_shares);
+    assert_eq!(after_withdraw_2_bank_state.total_deposit_shares, after_withdraw_bank_state.total_deposit_shares - after_withdraw_user_shares.deposit_shares);
 
     // ---> bank token account
     ctx.svm.assert_token_balance(&bank_token_account_pda, 0);
 
     // ---> user state - is closed
-    ctx.svm.assert_account_closed(&user_state_pda);
+    ctx.svm.assert_account_closed(&user_shares_pda);
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit);
@@ -583,7 +583,7 @@ fn withdraw_all_via_two_attempts() {
     let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
     assert_eq!(withdraw_event.user, depositor.pubkey());
     assert_eq!(withdraw_event.amount, actual_assets_to_withdraw);
-    assert_eq!(withdraw_event.shares, after_withdraw_user_state.deposit_usdc_shares);
+    assert_eq!(withdraw_event.shares, after_withdraw_user_shares.deposit_shares);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
