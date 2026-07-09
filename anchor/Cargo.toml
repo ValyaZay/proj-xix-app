@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/bank", "programs/bank/replay"]
+members = ["programs/bank", "programs/bank/replay", "programs/bank/bank_test_utils"]
 resolver = "2"
 
 [profile.release]

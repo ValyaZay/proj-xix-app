@@ -24,6 +24,7 @@ serde = "1.0.228"
 serde_json = "1.0.150"
 
 [dev-dependencies]
+bank_test_utils = { path = "./bank_test_utils"}
 anchor-litesvm = "0.4.0"
 litesvm = "0.10.0"
 rand = "0.10.1"

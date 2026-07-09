@@ -3,17 +3,12 @@ use anchor_litesvm::{ Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
-mod utils;
-use utils::*;
+use bank_test_utils::*;
 
 mod invariants_tests;
 use invariants_tests::*;
 
-use test_env_utils::bank::{
-    accounts::{Bank},
-    //events::DepositEvent, //import from idl modules
-};
-
+use ::bank::{Bank};
 
 #[test]
 fn should_init_bank() {

@@ -1,23 +1,27 @@
 
-use anchor_litesvm::{ AccountError, EventHelpers, Signer, TestHelpers};
+use anchor_litesvm::{ EventHelpers, Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use ::bank::{//import from external crate (not from idl modules)
     events::{DepositEvent},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT},
     shares_math::convert_assets_to_shares,
+    Bank,
+    UserShares,
 };
 use solana_sdk::native_token::LAMPORTS_PER_SOL;
 
-mod utils;
-use utils::*;
+// mod utils;
+// use utils::*;
+
+use bank_test_utils::*;
 
 mod invariants_tests;
 use invariants_tests::*;
 
-use test_env_utils::bank::{
-    accounts::{UserShares, Bank},
-    //events::DepositEvent, //import from idl modules
-};
+// use test_env_utils::bank::{
+//     accounts::{UserShares, Bank},
+//     //events::DepositEvent, //import from idl modules
+// };
 
 
 #[test]

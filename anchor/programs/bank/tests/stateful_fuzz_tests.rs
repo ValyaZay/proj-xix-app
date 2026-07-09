@@ -3,6 +3,8 @@ use anchor_litesvm::{ AccountError, AnchorContext, AssertionHelpers, EventHelper
 use anchor_spl::{ token_interface::TokenAccount};
 use anchor_spl::associated_token::get_associated_token_address;
 use ::bank::{//import from external crate (not from idl modules)
+    Bank,
+    UserShares,
     events::{DepositEvent, WithdrawEvent, BankSnapshot},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT, SECONDS_PER_WEEK },
     shares_math::{convert_shares_to_assets, convert_assets_to_shares},
@@ -14,17 +16,17 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
 
-mod utils;
-use utils::*;
+use bank_test_utils::*;
+use bank_client::client::{ accounts, args };
 
 mod invariants_tests;
 use invariants_tests::*;
 
-use test_env_utils::bank::{
-    client::{accounts, args},
-    accounts::{UserShares, Bank},
-    //events::DepositEvent, //import from idl modules
-};
+// use test_env_utils::bank::{
+//     client::{accounts, args},
+//     accounts::{UserShares, Bank},
+//     //events::DepositEvent, //import from idl modules
+// };
 
 use chrono::{Utc};
 
