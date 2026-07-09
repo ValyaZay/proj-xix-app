@@ -28,10 +28,10 @@ fn deposit_should_revert_if_amount_is_less_than_allowed() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
@@ -60,10 +60,10 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
@@ -92,9 +92,9 @@ fn deposit_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
     let init_bank_state:Bank = ctx.get_account(&bank_pda).unwrap();
     let init_total_assets = init_bank_state.total_deposits;
     let init_total_shares = init_bank_state.total_deposit_shares;
@@ -176,10 +176,10 @@ fn deposit_should_revert_if_user_is_not_user_shares_owner() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
 
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange - depositor
     let amount_to_deposit = MIN_USDC_DEPOSIT;

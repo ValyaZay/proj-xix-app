@@ -28,29 +28,6 @@ pub fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     ctx
 }
 
-//Todo remove
-pub fn init_bank_helper(ctx: &mut AnchorContext, mint: &Pubkey, bank_pda: &Pubkey, bank_token_account_pda: &Pubkey, bank_authority: &Keypair) {
-    let ix = ctx
-        .program()
-        .accounts(accounts::InitBank {
-            authority: bank_authority.pubkey(),
-            mint: *mint,
-            bank_state: *bank_pda,
-            bank_token_account: *bank_token_account_pda,
-            token_program: anchor_spl::token::ID,
-            system_program: anchor_lang::system_program::ID,
-        })
-        .args(args::InitBank {})
-        .instruction()
-        .unwrap();
-
-    let result = ctx.execute_instruction(ix, &[&bank_authority]).unwrap();
-    result.assert_success();
-    
-    ctx.svm.assert_account_exists(bank_pda);
-    ctx.svm.assert_account_exists(bank_token_account_pda);
-}
-    
 // TODO remove
 pub fn get_deposit_inx(ctx: &mut AnchorContext, user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey, amount: u64) -> Instruction {
     let deposit_accounts = accounts::Deposit {
@@ -80,11 +57,11 @@ pub fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypai
     (mint.pubkey(), mint_authority)
 }
 
-pub fn get_bank_account_pda(mint: Pubkey, authority: Pubkey) -> Pubkey {
+pub fn get_bank_account_pda(mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref()], &self::bank::ID).0
 }
 
-pub fn get_bank_token_account_pda(mint: Pubkey) -> Pubkey {
+pub fn get_bank_token_account_pda(mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0
 }
 
@@ -97,11 +74,8 @@ pub fn init_bank_and_assert(
     mint: &Pubkey, 
     bank_authority: &Keypair
 ) {
-    // use dedicated function for pda derivation!!!
-    // Todo - use a dedicated function for this
-    let bank_pda = Pubkey::find_program_address(&[b"SEED_BANK_STATE", mint.as_ref()], &self::bank::ID).0;
-
-    let bank_token_account_pda = Pubkey::find_program_address(&[b"SEED_BANK_TOKEN_ACCOUNT", mint.as_ref()], &self::bank::ID).0;
+    let bank_pda = get_bank_account_pda(mint);
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
 
     let ix = ctx
         .program()
@@ -154,10 +128,10 @@ pub fn init_user_shares_and_assert(
 pub fn process_deposit_and_assert_states(
     ctx: &mut AnchorContext, 
     bank_authority: &Keypair,
-    user_shares_pda: &Pubkey, 
+    user_shares_pda: &Pubkey, //derive
     depositor: &Keypair, 
     mint: Pubkey, 
-    user_ata: &Pubkey, 
+    user_ata: &Pubkey, //derive
     amount: u64
 ) -> Result<(TransactionResult, u64, u64), BankErrors> {
     println!("deposit amount {} for user {}", amount, depositor.pubkey());
@@ -168,14 +142,14 @@ pub fn process_deposit_and_assert_states(
         println!("---> amount to deposit is more than max - {}", amount > MAX_USDC_DEPOSIT);
     }
     // derive pdas here, not pass???
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
 
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
 
     
-    let user_shares_before: UserShares = match ctx.get_account(&user_shares_pda) {
+    let user_shares_before: UserShares = match ctx.get_account(&user_shares_pda) { //remove match
         Ok(user_shares) => user_shares,
         Err(error) => {
             match error {
@@ -242,12 +216,12 @@ pub fn process_deposit_and_assert_states(
 
 pub fn process_withdraw_and_assert_states(
     ctx: &mut AnchorContext, 
-    user_shares_pda: &Pubkey, 
+    user_shares_pda: &Pubkey, //derive
     depositor: &Keypair, 
-    bank_pda: &Pubkey, 
+    bank_pda: &Pubkey, //do not pass, derive
     mint: &Pubkey, 
-    bank_token_account_pda: &Pubkey, 
-    user_ata: &Pubkey, 
+    bank_token_account_pda: &Pubkey, //derive
+    user_ata: &Pubkey, //derive
     amount: u64
 ) -> Result<(TransactionResult, u64, u64, bool), BankErrors> {
     println!("withdraw amount {} for user {}", amount, depositor.pubkey());
@@ -347,7 +321,7 @@ pub fn assert_and_record_deposit_event_and_snapshot(
     // record current bank state in BankSnapshot struct
     let after_deposit_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_snapshot = BankSnapshot {
-        user: deposit_event.user,
+        user: deposit_event.user,//use depositor, not event data
         total_deposits: after_deposit_bank_state.total_deposits,
         total_deposit_shares: after_deposit_bank_state.total_deposit_shares,
         timestamp: deposit_event.timestamp,
@@ -355,7 +329,7 @@ pub fn assert_and_record_deposit_event_and_snapshot(
     record_bank_event(&bank_snapshot, step, &utc_now, test_name, seed);
 }
 
-pub fn assert_and_record_withdraw_event_and_snapshot(
+pub fn assert_and_record_withdraw_event_and_snapshot( //unify with fn for deposit event, use match
     ctx: &AnchorContext, 
     withdraw_result: &TransactionResult,
     depositor: &Pubkey,
@@ -377,7 +351,7 @@ pub fn assert_and_record_withdraw_event_and_snapshot(
     // record current bank state in BankSnapshot struct
     let after_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_snapshot = BankSnapshot {
-        user: withdraw_event.user,
+        user: withdraw_event.user,//user depositor, not event data
         total_deposits: after_withdraw_bank_state.total_deposits,
         total_deposit_shares: after_withdraw_bank_state.total_deposit_shares,
         timestamp: withdraw_event.timestamp,

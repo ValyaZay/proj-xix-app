@@ -22,11 +22,11 @@ fn should_init_bank() {
     let (mint, _) = get_mint_pubkey_and_authority(&mut ctx);
 
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
 
     // Act
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Assert
     let bank_account: Bank = ctx.get_account(&bank_pda).unwrap();

@@ -36,10 +36,10 @@ fn deposits_in_raw_should_update_state() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
 
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange - depositor    
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
@@ -153,11 +153,11 @@ fn deposit_withdraw_should_update_state() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
+    let bank_pda = get_bank_account_pda(&mint);
     println!("Bank address {}", bank_pda);
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     println!("Bank token acc {}", bank_token_account_pda);
-    init_bank_helper(&mut ctx, &mint, &bank_pda, &bank_token_account_pda, &bank_authority);
+    init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     let mut final_bank_total_deposits = 0;
     let mut final_bank_total_shares= 0;
@@ -367,8 +367,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
 
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
@@ -479,8 +479,8 @@ fn randomized_test() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(mint, bank_authority.pubkey());
-    let bank_token_account_pda = get_bank_token_account_pda(mint);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     //choose random inx
