@@ -19,7 +19,7 @@ mod invariants_tests;
 use invariants_tests::*;
 
 #[test]
-fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
+fn withdraw_all_should_update_bank_and_user_shares_states_and_token_accounts_and_emit() {
     // deposit MIN_USDC_DEPOSIT amount -> withdraw MIN_USDC_DEPOSIT amount -> close user acc
     let amount_to_deposit_and_withdraw = MIN_USDC_DEPOSIT;
 
@@ -29,8 +29,8 @@ fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit()
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(&mint);
-    let bank_token_account_pda = get_bank_token_account_pda(&mint);
+    //let bank_pda = get_bank_account_pda(&mint);
+    //let bank_token_account_pda = get_bank_token_account_pda(&mint);
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange - depositor
@@ -38,17 +38,17 @@ fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit()
     init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     // Arrange user
-    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
+    //let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit_and_withdraw).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit_and_withdraw);
+    let _ = process_deposit_and_assert_states(&mut ctx, &depositor, mint, &user_ata, amount_to_deposit_and_withdraw).unwrap();
 
-    ctx
-    .execute_instruction(deposit_inx, &[&depositor])
-    .unwrap();
-
+    // withdraw
+    let (transaction_result, actually_withdrawn_assets, shares_to_burn, _) = process_withdraw_and_assert_states(&mut ctx, &depositor, &mint, &user_ata, amount_to_deposit_and_withdraw).unwrap();
+    
+    /*
     // state before withdraw
     // ---> bank state
     let before_withdraw_bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
@@ -108,15 +108,19 @@ fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit()
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit_and_withdraw);
+    */
 
     // Assert - WithdrawEvent
-    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_deposit_and_withdraw, shares_to_burn);
+    assert_withdraw_event(&transaction_result, &depositor.pubkey(), actually_withdrawn_assets, shares_to_burn);
 
     // invariants check
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
 
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(0, after_withdraw_bank_state.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(0, bank_state.total_deposit_shares);
 
 }
 
@@ -133,8 +137,6 @@ fn withdraw_no_dust_remains() {
 
     // Arrange bank
     let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    let bank_pda = get_bank_account_pda(&mint);
-    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange - depositor
@@ -147,6 +149,11 @@ fn withdraw_no_dust_remains() {
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
+    let _ = process_deposit_and_assert_states(&mut ctx, &depositor, mint, &user_ata, amount_to_deposit).unwrap();
+
+    // Withdraw
+    let (transaction_result, actually_withdrawn_assets, shares_to_burn, user_is_closed) = process_withdraw_and_assert_states(&mut ctx, &depositor, &mint, &user_ata, amount_to_withdraw).unwrap();
+    /*
     let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
     ctx
@@ -205,15 +212,19 @@ fn withdraw_no_dust_remains() {
 
     // ---> user ata state
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit);
+    */
 
     // Assert - WithdrawEvent
-    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_deposit, before_withdraw_user_shares.deposit_shares);
+    assert_withdraw_event(&transaction_result, &depositor.pubkey(), amount_to_deposit, shares_to_burn);
 
     // invariants check
+    let bank_pda = get_bank_account_pda(&mint);
+    let bank_state: Bank = ctx.get_account(&bank_pda).unwrap();
+    let bank_token_account_pda = get_bank_token_account_pda(&mint);
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
-    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, after_withdraw_bank_state.total_deposits);
+    bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
 
-    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(0, after_withdraw_bank_state.total_deposit_shares);
+    sum_of_users_deposit_shares_equals_bank_total_deposit_shares(0, bank_state.total_deposit_shares);
 
 }
 

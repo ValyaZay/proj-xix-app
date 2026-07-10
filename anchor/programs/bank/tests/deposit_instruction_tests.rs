@@ -21,15 +21,13 @@ fn deposit_should_revert_if_amount_is_less_than_allowed() {
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
 
     // Arrange bank
-    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();    
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MIN_USDC_DEPOSIT).unwrap();
-
     init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     let amount_to_deposit = MIN_USDC_DEPOSIT - 1;
@@ -51,15 +49,13 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
 
     // Arrange bank
-    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
-    
+    let bank_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();    
     init_bank_and_assert(&mut ctx, &mint, &bank_authority);
 
     // Arrange depositor
     let depositor = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let user_ata = ctx.svm.create_associated_token_account(&mint, &depositor).unwrap();
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, MAX_USDC_DEPOSIT).unwrap();
-
     init_user_shares_and_assert(&mut ctx, &depositor, &mint);
 
     let amount_to_deposit = MAX_USDC_DEPOSIT + 1;
@@ -74,7 +70,7 @@ fn deposit_should_revert_if_amount_is_more_than_allowed() {
 }
 
 #[test]
-fn deposit_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
+fn deposit_should_update_bank_and_user_shares_states_and_token_accounts_and_emit() {
     // Arrange
     let mut ctx = init_anchor_ctx();
     let (mint, mint_authority) = get_mint_pubkey_and_authority(&mut ctx);
@@ -94,7 +90,7 @@ fn deposit_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
 
     let depositor_sol_balance_before = ctx.svm.get_balance(&depositor.pubkey()).unwrap();
 
-    let (transaction_result, deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &user_shares_pda, &depositor, mint, &user_ata, amount_to_deposit).unwrap();
+    let (transaction_result, deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &depositor, mint, &user_ata, amount_to_deposit).unwrap();
 
     // Assert - DepositEvent
     assert_deposit_event(&transaction_result, &depositor.pubkey(), deposited_amount, shares_to_mint);

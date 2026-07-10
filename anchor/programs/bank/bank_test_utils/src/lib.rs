@@ -144,10 +144,9 @@ pub fn get_deposit_inx(
 
 pub fn process_deposit_and_assert_states(
     ctx: &mut AnchorContext,
-    user_shares_pda: &Pubkey, //derive
     depositor: &Keypair, 
     mint: Pubkey, 
-    user_ata: &Pubkey, //derive
+    user_ata: &Pubkey,
     amount: u64
 ) -> core::result::Result<(TransactionResult, u64, u64), BankErrors> {
     println!("deposit amount {} for user {}", amount, depositor.pubkey());
@@ -157,14 +156,14 @@ pub fn process_deposit_and_assert_states(
     if amount > MAX_USDC_DEPOSIT {
         println!("---> amount to deposit is more than max - {}", amount > MAX_USDC_DEPOSIT);
     }
-    // derive pdas here, not pass???
+    //bank
     let bank_pda = get_bank_account_pda(&mint);
     let bank_token_account_pda = get_bank_token_account_pda(&mint);
-
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
 
-    // todo - remove match
+    //user
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), &mint);
     let user_shares_before: UserShares = ctx.get_account(&user_shares_pda).unwrap();
     let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
 
@@ -173,7 +172,7 @@ pub fn process_deposit_and_assert_states(
 
     let deposit_accounts = accounts::Deposit {
         user: depositor.pubkey(),
-        user_shares: *user_shares_pda,
+        user_shares: user_shares_pda,
         bank_state: bank_pda,
         mint: mint,
         user_associated_token_account: *user_ata,
@@ -220,17 +219,19 @@ pub fn process_deposit_and_assert_states(
 
 pub fn process_withdraw_and_assert_states(
     ctx: &mut AnchorContext, 
-    user_shares_pda: &Pubkey, //derive
     depositor: &Keypair, 
-    bank_pda: &Pubkey, //do not pass, derive
-    mint: &Pubkey, 
-    bank_token_account_pda: &Pubkey, //derive
-    user_ata: &Pubkey, //derive
+    mint: &Pubkey,
+    user_ata: &Pubkey, 
     amount: u64
 ) -> core::result::Result<(TransactionResult, u64, u64, bool), BankErrors> {
     println!("withdraw amount {} for user {}", amount, depositor.pubkey());
+
+    let bank_pda = get_bank_account_pda(mint);
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
+
+    let user_shares_pda = get_user_shares_pda(&depositor.pubkey(), mint);
     let user_shares_before: UserShares = ctx.get_account(&user_shares_pda).unwrap();
     let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
 
@@ -242,11 +243,11 @@ pub fn process_withdraw_and_assert_states(
 
     let withdraw_accounts = accounts::Withdraw {
         user: depositor.pubkey(),
-        user_shares: *user_shares_pda,
-        bank_state: *bank_pda,
+        user_shares: user_shares_pda,
+        bank_state: bank_pda,
         mint: *mint,
         user_associated_token_account: *user_ata,
-        bank_token_account: *bank_token_account_pda,
+        bank_token_account: bank_token_account_pda,
         token_program: anchor_spl::token::ID,
         system_program: anchor_lang::system_program::ID,
     };
