@@ -75,7 +75,7 @@ fn deposits_in_raw_should_update_state() {
     while num != 0 {
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
 
-        let inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+        let inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
         let slot = ctx.svm.get_sysvar::<Clock>().slot;
         println!("slot {}", slot );
@@ -196,7 +196,7 @@ fn deposit_withdraw_should_update_state() {
         ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
         // Deposit
-        let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+        let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
         ctx
         .execute_instruction(deposit_inx, &[&depositor])
@@ -393,7 +393,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
         // Deposit
         let amount_to_deposit: u64 = rng.random_range(MIN_USDC_DEPOSIT..=MAX_USDC_DEPOSIT);
-        let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_shares_pda, &depositor, mint, &user_ata, amount_to_deposit) {
+        let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &user_shares_pda, &depositor, mint, &user_ata, amount_to_deposit) {
                     Ok(t) => t,
                     Err(_) => {
                         continue;
@@ -532,7 +532,7 @@ fn randomized_test() {
                 // Deposit
                 let amount_to_deposit: u64 = rng.random_range(0..=MAX_USDC_DEPOSIT * 2); // make the deposit inx check the min and max deposit amount
 
-                let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &bank_authority, &user_shares_pda, depositor, mint, &user_ata, amount_to_deposit) {
+                let (deposit_result, actual_deposited_amount, shares_to_mint) = match process_deposit_and_assert_states(&mut ctx, &user_shares_pda, depositor, mint, &user_ata, amount_to_deposit) {
                     Ok(t) => t,
                     Err(_) => {
                         continue;

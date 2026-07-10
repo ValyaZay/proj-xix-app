@@ -46,7 +46,7 @@ fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit()
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit_and_withdraw).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit_and_withdraw);
+    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit_and_withdraw);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -154,7 +154,7 @@ fn withdraw_no_dust_remains() {
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -254,7 +254,7 @@ fn withdraw_but_leave_minimum() {
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -362,7 +362,7 @@ fn withdraw_should_revert_if_zero_amount_to_withdraw() {
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
@@ -459,7 +459,7 @@ fn withdraw_all_via_two_attempts() {
     ctx.svm.mint_to(&mint, &user_ata, &mint_authority, amount_to_deposit).unwrap();
 
     // Deposit
-    let deposit_inx = get_deposit_inx(&mut ctx, &user_shares_pda, &depositor.pubkey(), &bank_pda, &mint, &bank_token_account_pda, &user_ata, amount_to_deposit);
+    let deposit_inx = get_deposit_inx(&mut ctx, &depositor.pubkey(), &mint, &user_ata, amount_to_deposit);
 
     ctx
     .execute_instruction(deposit_inx, &[&depositor])
