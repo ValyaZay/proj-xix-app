@@ -1,11 +1,10 @@
 use anchor_lang::solana_program::clock::{Clock};
-use anchor_litesvm::{ AccountError, AnchorContext, AssertionHelpers, EventHelpers, Pubkey, Signer, TestHelpers};
+use anchor_litesvm::{ AnchorContext, AssertionHelpers, Pubkey, Signer, TestHelpers};
 use anchor_spl::{ token_interface::TokenAccount};
 use anchor_spl::associated_token::get_associated_token_address;
 use ::bank::{//import from external crate (not from idl modules)
     Bank,
     UserShares,
-    events::{DepositEvent, WithdrawEvent, BankSnapshot},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT, SECONDS_PER_WEEK },
     shares_math::{convert_shares_to_assets, convert_assets_to_shares},
 };
@@ -13,20 +12,14 @@ use solana_keypair::Keypair;
 use solana_sdk::{native_token::LAMPORTS_PER_SOL};
 use rand::RngExt;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{SeedableRng};
 use std::collections::HashMap;
 
 use bank_test_utils::*;
-use bank_client::client::{ accounts, args };
+use bank_client::client::{ accounts, args };//import from generated module
 
 mod invariants_tests;
 use invariants_tests::*;
-
-// use test_env_utils::bank::{
-//     client::{accounts, args},
-//     accounts::{UserShares, Bank},
-//     //events::DepositEvent, //import from idl modules
-// };
 
 use chrono::{Utc};
 
@@ -232,7 +225,7 @@ fn deposit_withdraw_should_update_state() {
         clock.unix_timestamp = clock.unix_timestamp + 500 * 400 / 1000;
         ctx.svm.set_sysvar(&clock);
 
-        // Withdraw
+        // Withdraw - replace with 'process_withdraw...'
         let withdraw_accounts = accounts::Withdraw {
             user: depositor.pubkey(),
             user_shares: user_shares_pda,
@@ -280,11 +273,7 @@ fn deposit_withdraw_should_update_state() {
             final_bank_total_shares = after_withdraw_bank_state.total_deposit_shares;
 
             // Assert - WithdrawEvent
-            withdraw_result.assert_event_emitted::<WithdrawEvent>();
-            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-            assert_eq!(withdraw_event.user, depositor.pubkey());
-            assert_eq!(withdraw_event.amount, actual_assets_user_has);
-            assert_eq!(withdraw_event.shares, shares_to_burn);
+            assert_withdraw_event(&withdraw_result, &depositor.pubkey(), actual_assets_user_has, shares_to_burn); // should be actually withdrawn amount, not actually user has
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -321,11 +310,7 @@ fn deposit_withdraw_should_update_state() {
             sum_of_user_shares += after_withdraw_user_shares.deposit_shares;
 
             // Assert - WithdrawEvent
-            withdraw_result.assert_event_emitted::<WithdrawEvent>();
-            let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-            assert_eq!(withdraw_event.user, depositor.pubkey());
-            assert_eq!(withdraw_event.amount, amount_to_withdraw);
-            assert_eq!(withdraw_event.shares, shares_to_burn);
+            assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_withdraw, shares_to_burn);
 
             // invariants check
             let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
