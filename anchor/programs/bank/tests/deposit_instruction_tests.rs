@@ -1,10 +1,8 @@
 
-use anchor_litesvm::{ EventHelpers, Signer, TestHelpers};
+use anchor_litesvm::{ Signer, TestHelpers};
 use anchor_spl::token_interface::TokenAccount;
 use ::bank::{//import from external crate (not from idl modules)
-    events::{DepositEvent},
     constants::{ MIN_USDC_DEPOSIT, MAX_USDC_DEPOSIT},
-    shares_math::convert_assets_to_shares,
     Bank,
     UserShares,
 };
@@ -98,15 +96,8 @@ fn deposit_should_update_bank_and_user_shares_and_token_accounts_and_emit() {
 
     let (transaction_result, deposited_amount, shares_to_mint) = process_deposit_and_assert_states(&mut ctx, &user_shares_pda, &depositor, mint, &user_ata, amount_to_deposit).unwrap();
 
-    // Assert - DepositEvent - do not record!!!
-    // let shares_to_be_added_from_amount = convert_assets_to_shares(amount_to_deposit, init_total_shares, init_total_assets, false);
-    // result.assert_event_emitted::<DepositEvent>();
-    // let deposit_event: DepositEvent = result.parse_event().unwrap();
-    // assert_eq!(deposit_event.user, depositor.pubkey());
-    // assert_eq!(deposit_event.amount, amount_to_deposit);
-    // assert_eq!(deposit_event.shares, shares_to_be_added_from_amount);
-
-    
+    // Assert - DepositEvent
+    assert_deposit_event(&transaction_result, &depositor.pubkey(), deposited_amount, shares_to_mint);
 
     // Assert - fees are paid by the depositor
     let tx_fee_to_validator = &transaction_result.inner().fee;

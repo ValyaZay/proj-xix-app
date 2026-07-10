@@ -334,6 +334,7 @@ pub fn assert_withdraw_event( //unify with fn for deposit event, use match
 }
 
 pub fn record_bank_snapshot( 
+    ctx: &AnchorContext,
     bank_state: &Bank,
     depositor: &Pubkey,
     step: u8,
@@ -341,7 +342,8 @@ pub fn record_bank_snapshot(
     seed: u64
 ) {
     // record current bank state in BankSnapshot struct
-    let timestamp = Utc::now().timestamp();
+    let clock: Clock = ctx.svm.get_sysvar();
+    let timestamp = clock.unix_timestamp;
     let bank_snapshot = BankSnapshot {
         user: *depositor,
         total_deposits: bank_state.total_deposits,

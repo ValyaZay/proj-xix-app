@@ -454,10 +454,9 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
 #[test]
 fn randomized_test() {
-    let utc_now = Utc::now();//gets timestamp from sysvar
+    let utc_now_str = Utc::now().to_string();//gets timestamp from system
     let seed: u64 = 8555; 
-    let utc_not_str = utc_now.to_string();
-    let test_name = format!("seed-{seed}-randomized_test_{utc_not_str}");
+    let test_name = format!("seed-{seed}-randomized_test_{utc_now_str}");
 
     // Arrange
     let mut ctx = init_anchor_ctx();
@@ -543,7 +542,7 @@ fn randomized_test() {
                 sum_of_users_shares += shares_to_mint;
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
 
-                record_bank_snapshot(&bank_state, &depositor.pubkey(), step, &test_name, seed);
+                record_bank_snapshot(&ctx, &bank_state, &depositor.pubkey(), step, &test_name, seed);
                 
                 time_travel(&mut ctx);
             },
@@ -586,7 +585,7 @@ fn randomized_test() {
                 sum_of_users_shares -= shares_to_burn;
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
 
-                record_bank_snapshot(&bank_state, &depositor.pubkey(), step, &test_name, seed);
+                record_bank_snapshot(&ctx, &bank_state, &depositor.pubkey(), step, &test_name, seed);
 
                 time_travel(&mut ctx);
                 
