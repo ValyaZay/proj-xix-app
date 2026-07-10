@@ -34,28 +34,6 @@ pub fn init_anchor_ctx() -> anchor_litesvm::AnchorContext {
     ctx
 }
 
-// TODO remove
-pub fn get_deposit_inx(ctx: &mut AnchorContext, user_state_pda: &Pubkey, depositor: &Pubkey, bank_pda: &Pubkey, mint: &Pubkey, bank_token_account_pda: &Pubkey, user_ata: &Pubkey, amount: u64) -> Instruction {
-    let deposit_accounts = accounts::Deposit {
-        user: *depositor,
-        user_shares: *user_state_pda,
-        bank_state: *bank_pda,
-        mint: *mint,
-        user_associated_token_account: *user_ata,
-        bank_token_account: *bank_token_account_pda,
-        token_program: anchor_spl::token::ID,
-        system_program: anchor_lang::system_program::ID,
-        associated_token_program: anchor_spl::associated_token::ID,
-    };
-
-    ctx
-        .program()
-        .accounts(deposit_accounts)
-        .args(args::Deposit { amount: amount })
-        .instruction()
-        .unwrap()
-}
-
 pub fn get_mint_pubkey_and_authority(ctx: &mut AnchorContext) -> (Pubkey, Keypair) {
     let mint_authority = ctx.svm.create_funded_account(10 * LAMPORTS_PER_SOL).unwrap();
     let mint = ctx.svm.create_token_mint(&mint_authority, 6).unwrap();
@@ -131,9 +109,39 @@ pub fn init_user_shares_and_assert(
     ctx.svm.assert_account_exists(&user_shares_pda);
 }
 
-pub fn process_deposit_and_assert_states(
+pub fn get_deposit_inx(
     ctx: &mut AnchorContext, 
-    bank_authority: &Keypair,
+    depositor: &Pubkey, 
+    mint: &Pubkey, 
+    user_ata: &Pubkey, 
+    amount: u64
+) -> Instruction {
+    let user_shares_pda = get_user_shares_pda(depositor, mint);
+    let bank_pda = get_bank_account_pda(mint);
+    let bank_token_account_pda = get_bank_token_account_pda(mint);
+
+    let deposit_accounts = accounts::Deposit {
+        user: *depositor,
+        user_shares: user_shares_pda,
+        bank_state: bank_pda,
+        mint: *mint,
+        user_associated_token_account: *user_ata,
+        bank_token_account: bank_token_account_pda,
+        token_program: anchor_spl::token::ID,
+        system_program: anchor_lang::system_program::ID,
+        associated_token_program: anchor_spl::associated_token::ID,
+    };
+
+    ctx
+        .program()
+        .accounts(deposit_accounts)
+        .args(args::Deposit { amount: amount })
+        .instruction()
+        .unwrap()
+}
+
+pub fn process_deposit_and_assert_states(
+    ctx: &mut AnchorContext,
     user_shares_pda: &Pubkey, //derive
     depositor: &Keypair, 
     mint: Pubkey, 
@@ -154,18 +162,8 @@ pub fn process_deposit_and_assert_states(
     let bank_state_before: Bank = ctx.get_account(&bank_pda).unwrap();
     let bank_token_account_before: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
 
-    
-    let user_shares_before: UserShares = match ctx.get_account(&user_shares_pda) { //remove match
-        Ok(user_shares) => user_shares,
-        Err(error) => {
-            match error {
-                AccountError::AccountNotFound(_) => {
-                    UserShares::default()
-                }
-                _ => panic!("Cant get user state")
-            }
-        }
-    };
+    // todo - remove match
+    let user_shares_before: UserShares = ctx.get_account(&user_shares_pda).unwrap();
     let user_ata_before: TokenAccount = ctx.get_account(&user_ata).unwrap();
 
     let shares_to_mint = convert_assets_to_shares(amount, bank_state_before.total_deposit_shares, bank_state_before.total_deposits, false);
@@ -217,8 +215,6 @@ pub fn process_deposit_and_assert_states(
 
     Ok((transaction_result, amount, shares_to_mint))
 }
-
-
 
 pub fn process_withdraw_and_assert_states(
     ctx: &mut AnchorContext, 
@@ -305,7 +301,8 @@ pub fn process_withdraw_and_assert_states(
     Ok((transaction_result, actually_withdrawn_assets, shares_to_burn, user_is_closed))
 }
 
-pub fn assert_and_record_deposit_event_and_snapshot(
+// TODO split assert and record!
+pub fn assert_and_record_deposit_event_and_snapshot( 
     ctx: &AnchorContext, 
     deposit_result: &TransactionResult,
     depositor: &Pubkey,
