@@ -400,7 +400,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                     },
                 };
 
-        assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, step, &utc_now, test_name, 0);
+        let _ = assert_deposit_event(&deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint);
 
         // invariants check
         let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -422,8 +422,8 @@ fn deposit_withdraw_withdraw_should_update_state() {
                     Ok(t) => t,
                     Err(error) => continue,
                 };
-        
-        assert_and_record_withdraw_event_and_snapshot(&ctx, &withdraw_1_result, &depositor.pubkey(), actually_withdrawn_assets_1, shares_to_burn_1, &bank_pda, step, &utc_now, test_name, 0);
+
+        assert_withdraw_event(&withdraw_1_result, &depositor.pubkey(), actually_withdrawn_assets_1, shares_to_burn_1);
 
         // invariants check
         let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -449,7 +449,7 @@ fn deposit_withdraw_withdraw_should_update_state() {
                     Err(error) => continue,
                 };
 
-                assert_and_record_withdraw_event_and_snapshot(&ctx, &withdraw_2_result, &depositor.pubkey(), actually_withdrawn_assets_2, shares_to_burn_2, &bank_pda, step, &utc_now, test_name, 0);
+                assert_withdraw_event(&withdraw_2_result, &depositor.pubkey(), actually_withdrawn_assets_2, shares_to_burn_2);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -469,9 +469,10 @@ fn deposit_withdraw_withdraw_should_update_state() {
 
 #[test]
 fn randomized_test() {
-    let utc_now = Utc::now().to_string();
+    let utc_now = Utc::now();//gets timestamp from sysvar
     let seed: u64 = 8555; 
-    let test_name = format!("seed-{seed}-randomized_test");
+    let utc_not_str = utc_now.to_string();
+    let test_name = format!("seed-{seed}-randomized_test_{utc_not_str}");
 
     // Arrange
     let mut ctx = init_anchor_ctx();
@@ -545,7 +546,10 @@ fn randomized_test() {
 
                 // update step// add step
                 steps.insert(depositor.pubkey(), step);
-                assert_and_record_deposit_event_and_snapshot(&ctx, &deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint, &bank_pda, step, &utc_now, &test_name, seed);
+
+                // assert event
+                let deposit_event = assert_deposit_event(&deposit_result, &depositor.pubkey(), actual_deposited_amount, shares_to_mint);
+                record_bank_event(&deposit_event, step, &test_name, seed);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -553,8 +557,10 @@ fn randomized_test() {
                 bank_token_account_balance_not_less_than_bank_total_deposits(bank_token_account.amount, bank_state.total_deposits);
                 sum_of_users_shares += shares_to_mint;
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
+
+                record_bank_snapshot(&bank_state, &depositor.pubkey(), step, &test_name, seed);
                 
-                time_travel(&mut ctx);                
+                time_travel(&mut ctx);
             },
             BankInstruction::Withdraw => {
                 println!("------------");
@@ -583,8 +589,9 @@ fn randomized_test() {
                 // step 
                 let mut step = steps[&depositor.pubkey()];
                 step += 1;
-        
-                assert_and_record_withdraw_event_and_snapshot(&ctx, &withdraw_result, &depositor.pubkey(), actually_withdrawn_assets, shares_to_burn, &bank_pda, step, &utc_now, &test_name, seed);
+
+                let withdraw_event = assert_withdraw_event(&withdraw_result, &depositor.pubkey(), actually_withdrawn_assets, shares_to_burn);
+                record_bank_event(&withdraw_event, step, &test_name, seed);
 
                 // invariants check
                 let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -593,6 +600,8 @@ fn randomized_test() {
 
                 sum_of_users_shares -= shares_to_burn;
                 sum_of_users_deposit_shares_equals_bank_total_deposit_shares(sum_of_users_shares, bank_state.total_deposit_shares);
+
+                record_bank_snapshot(&bank_state, &depositor.pubkey(), step, &test_name, seed);
 
                 time_travel(&mut ctx);
                 
