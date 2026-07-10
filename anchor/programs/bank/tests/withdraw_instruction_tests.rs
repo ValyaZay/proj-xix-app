@@ -113,11 +113,7 @@ fn withdraw_all_should_update_bank_and_user_shares_and_token_accounts_and_emit()
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit_and_withdraw);
 
     // Assert - WithdrawEvent
-    withdraw_result.assert_event_emitted::<WithdrawEvent>();
-    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-    assert_eq!(withdraw_event.user, depositor.pubkey());
-    assert_eq!(withdraw_event.amount, amount_to_deposit_and_withdraw);
-    assert_eq!(withdraw_event.shares, shares_to_burn);
+    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_deposit_and_withdraw, shares_to_burn);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -214,11 +210,7 @@ fn withdraw_no_dust_remains() {
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit);
 
     // Assert - WithdrawEvent
-    withdraw_result.assert_event_emitted::<WithdrawEvent>();
-    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-    assert_eq!(withdraw_event.user, depositor.pubkey());
-    assert_eq!(withdraw_event.amount, amount_to_deposit);
-    assert_eq!(withdraw_event.shares, before_withdraw_user_shares.deposit_shares);
+    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_deposit, before_withdraw_user_shares.deposit_shares);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -322,11 +314,7 @@ fn withdraw_but_leave_minimum() {
     ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
 
     // Assert - WithdrawEvent
-    withdraw_result.assert_event_emitted::<WithdrawEvent>();
-    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-    assert_eq!(withdraw_event.user, depositor.pubkey());
-    assert_eq!(withdraw_event.amount, amount_to_withdraw);
-    assert_eq!(withdraw_event.shares, shares_to_burn);
+    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_withdraw, shares_to_burn);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -527,11 +515,7 @@ fn withdraw_all_via_two_attempts() {
     ctx.svm.assert_token_balance(&user_ata, amount_to_withdraw);
 
     // Assert - WithdrawEvent
-    withdraw_result.assert_event_emitted::<WithdrawEvent>();
-    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-    assert_eq!(withdraw_event.user, depositor.pubkey());
-    assert_eq!(withdraw_event.amount, amount_to_withdraw);
-    assert_eq!(withdraw_event.shares, shares_to_burn);
+    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), amount_to_withdraw, shares_to_burn);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
@@ -585,11 +569,7 @@ fn withdraw_all_via_two_attempts() {
     ctx.svm.assert_token_balance(&user_ata, amount_to_deposit);
 
     // Assert - WithdrawEvent
-    withdraw_result.assert_event_emitted::<WithdrawEvent>();
-    let withdraw_event: WithdrawEvent = withdraw_result.parse_event().unwrap();
-    assert_eq!(withdraw_event.user, depositor.pubkey());
-    assert_eq!(withdraw_event.amount, actual_assets_to_withdraw);
-    assert_eq!(withdraw_event.shares, after_withdraw_user_shares.deposit_shares);
+    assert_withdraw_event(&withdraw_result, &depositor.pubkey(), actual_assets_to_withdraw, after_withdraw_user_shares.deposit_shares);
 
     // invariants check
     let bank_token_account: TokenAccount = ctx.get_account(&bank_token_account_pda).unwrap();
